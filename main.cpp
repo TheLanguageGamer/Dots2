@@ -20,6 +20,18 @@ struct Vector2
 	, y(y) {}
 };
 
+struct Vector2Int
+{
+	int32_t x;
+	int32_t y;
+	Vector2Int()
+	: x(0)
+	, y(0) {}
+	Vector2Int(int32_t x, int32_t y)
+	: x(x)
+	, y(y) {}
+};
+
 enum Type
 {
 	Circle
@@ -38,20 +50,39 @@ struct Entity
 	, color(color) {}
 };
 
-struct Game
+static Entity createCircle(float x, float y, float radius, uint32_t color)
+{
+	return Entity(Type::Circle, Vector2(x, y), Vector2(radius*2.0, radius*2.0), color);
+}
+
+struct Screen
 {
 	std::vector<Entity> entities;
-	int32_t width;
-	int32_t height;
+	Vector2 screenSize;
 	uint32_t bgColor;
-	Game(int32_t width, int32_t height, uint32_t bgColor)
-	: width(width)
-	, height(height)
+	Screen(Vector2 screenSize, uint32_t bgColor)
+	: screenSize(screenSize)
 	, bgColor(bgColor) {}
+	Screen() {}
+	virtual void loop(double currentTime) {}
+};
 
-	void render(SDL_Surface* surface, double delta, uint64_t count)
+struct Game
+{
+	Screen* screen;
+	Vector2 screenSize;
+	uint32_t bgColor;
+	Game(Vector2 screenSize, uint32_t bgColor)
+	: screenSize(screenSize)
+	, bgColor(bgColor)
+	, screen(nullptr) {}
+
+	void setScreen(Screen* s) { screen = s;}
+
+	void render(SDL_Surface* surface, double currentTime, uint64_t count)
 	{
-		boxColor(surface, 0, 0, width, height, bgColor);
+		std::vector<Entity>& entities = screen->entities;
+		boxColor(surface, 0, 0, screenSize.x, screenSize.y, bgColor);
 		for (int64_t i = 0; i < entities.size(); ++i)
 		{
 			const Entity& entity = entities[i];
@@ -60,7 +91,7 @@ struct Game
 				case Type::Circle:
 				{
 					filledEllipseColor(surface,
-						entity.position.x + count,
+						entity.position.x,
 						entity.position.y,
 						entity.size.x/2.0,
 						entity.size.y/2.0,
@@ -72,31 +103,121 @@ struct Game
 		SDL_UpdateRect(surface, 0, 0, 0, 0);
 	}
 
-	void loop(SDL_Surface* surface, double delta, uint64_t count)
+	void loop(SDL_Surface* surface, double currentTime, uint64_t count)
 	{
-		render(surface, delta, count);
+		screen->loop(currentTime);
+		render(surface, currentTime, count);
 	}
 };
 
-static Entity createCircle(float x, float y, float radius, uint32_t color)
+struct Grid
 {
-	return Entity(Type::Circle, Vector2(x, y), Vector2(radius*2.0, radius*2.0), color);
-}
+	Vector2Int matrixSize;
+	Vector2 screenSize;
+	int32_t startIndex;
+	std::vector<uint32_t> stateColors;
+	Grid(Vector2Int matrixSize,
+		 Vector2 screenSize,
+		 Vector2 cellSize,
+		 float cellPadding,
+		 std::vector<Entity>& entities)
+	: matrixSize(matrixSize)
+	, screenSize(screenSize)
+	, startIndex(entities.size())
+	{
+
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			for( int32_t j = 0; j < matrixSize.y; ++j)
+			{
+				float x = i*cellSize.x + cellSize.x/2;
+				float y = j*cellSize.y + cellSize.y/2;
+				entities.push_back(createCircle(x, y, cellSize.x/2.0-cellPadding/2.0, 0xddddddff));
+				entities.push_back(createCircle(x+2.5, y+1.5, cellSize.x/2.0-cellPadding/2.0, 0xededed00));
+			}
+		}
+	}
+	Grid()
+	: startIndex(-1) {}
+
+	uint32_t getCellIndex(uint32_t row, uint32_t column)
+	{
+		uint32_t index = startIndex + 2*matrixSize.y*column + 2*row + 1;
+		return index;
+	}
+
+	uint32_t getCell(uint32_t row, uint32_t column, std::vector<Entity>& entities)
+	{
+		return entities[getCellIndex(row, column)].color;
+	}
+
+	void setCell(uint32_t row, uint32_t column, uint32_t state, std::vector<Entity>& entities)
+	{
+		entities[getCellIndex(row, column)].color = state;
+	}
+};
+
+struct PlayTetris : Screen
+{
+	double period;
+	double lastDrop;
+	Grid grid;
+	enum State
+	{
+		Empty = 0x0,
+		Falling = 0xff9900ff,
+		Grounded = 0x00ff99ff
+	};
+	PlayTetris(Vector2 screenSize, uint32_t bgColor)
+	: Screen(screenSize, bgColor)
+	, period(5.5)
+	, lastDrop(0.0)
+	{
+		grid = Grid(
+			Vector2Int(10, 24),
+			screenSize,
+			Vector2(20, 20),
+			3.0f,
+			entities);
+		grid.setCell(5, 3, State::Falling, entities);
+		grid.setCell(6, 3, State::Falling, entities);
+		grid.setCell(7, 3, State::Falling, entities);
+		grid.setCell(7, 4, State::Falling, entities);
+	}
+	void drop()
+	{
+		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+		{
+			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t state = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
+				grid.setCell(row, column, state, entities);
+			}
+		}
+	}
+	void loop(double currentTime) override
+	{
+		if (currentTime - lastDrop > period)
+		{
+			drop();
+			lastDrop = currentTime;
+		}
+	}
+};
 
 std::function<void()> loop;
 void main_loop() { loop(); }
 
 int main()
 {
-	Game game(400, 400, 0xffffffff);
-	for (float i = 0; i < 1000; ++i)
-	{
-		game.entities.push_back(createCircle(i/2, i/2, 30, 0x0000ffff));
-	}
+	Vector2 screenSize(400, 400);
+	Game game(screenSize, 0xffffffff);
+	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff);
+	game.setScreen(playTetris);
 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_Surface* surface = SDL_SetVideoMode(game.width, game.height, 32, SDL_SWSURFACE);
+	SDL_Surface* surface = SDL_SetVideoMode(screenSize.x, screenSize.y, 32, SDL_SWSURFACE);
 	
 	uint64_t count = 0;
 	double lastTime = emscripten_get_now();
@@ -110,8 +231,7 @@ int main()
 
 		count += 1;
 		double currentTime = emscripten_get_now();
-		double delta = currentTime - lastTime;
-		game.loop(surface, delta, count);
+		game.loop(surface, currentTime, count);
 		lastTime = currentTime;
 	};
 
