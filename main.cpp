@@ -1,12 +1,16 @@
 
 #include <vector>
 #include <functional>
+#include <random>
 #include <stdio.h>
 #include <SDL/SDL_gfxPrimitives.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+
+std::random_device rd;
+std::mt19937 rng(rd()); 
 
 struct Vector2
 {
@@ -133,7 +137,7 @@ struct Grid
 				float x = i*cellSize.x + cellSize.x/2;
 				float y = j*cellSize.y + cellSize.y/2;
 				entities.push_back(createCircle(x, y, cellSize.x/2.0-cellPadding/2.0, 0xddddddff));
-				entities.push_back(createCircle(x+2.5, y+1.5, cellSize.x/2.0-cellPadding/2.0, 0xededed00));
+				entities.push_back(createCircle(x+2.5, y+1.5, cellSize.x/2.0-cellPadding/2.0, 0x0));
 			}
 		}
 	}
@@ -155,6 +159,21 @@ struct Grid
 	{
 		entities[getCellIndex(row, column)].color = state;
 	}
+
+	void stamp(
+		std::vector<std::vector<uint32_t>> shape,
+		Vector2Int offset,
+		std::vector<Entity>& entities)
+	{
+		for (int32_t row = 0; row < shape.size(); ++row)
+		{
+
+			for (int32_t column = 0; column < shape[row].size(); ++column)
+			{
+				setCell(row+offset.x, column+offset.y, shape[row][column], entities);
+			}
+		}
+	}
 };
 
 struct PlayTetris : Screen
@@ -162,27 +181,94 @@ struct PlayTetris : Screen
 	double period;
 	double lastDrop;
 	Grid grid;
+	std::vector<std::vector<std::vector<uint32_t>>> shapes;
+	std::uniform_int_distribution<uint32_t> uniformDistribution;
 	enum State
 	{
 		Empty = 0x0,
 		Falling = 0xff9900ff,
-		Grounded = 0x00ff99ff
+		Grounded = 0x00cc66ff
 	};
 	PlayTetris(Vector2 screenSize, uint32_t bgColor)
 	: Screen(screenSize, bgColor)
-	, period(5.5)
+	, period(200.0)
 	, lastDrop(0.0)
+	, uniformDistribution(0, 0)
 	{
 		grid = Grid(
 			Vector2Int(10, 24),
 			screenSize,
-			Vector2(20, 20),
-			3.0f,
+			Vector2(15, 15),
+			2.0f,
 			entities);
-		grid.setCell(5, 3, State::Falling, entities);
-		grid.setCell(6, 3, State::Falling, entities);
-		grid.setCell(7, 3, State::Falling, entities);
-		grid.setCell(7, 4, State::Falling, entities);
+
+		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+			{
+				{State::Falling, State::Empty},
+				{State::Falling, State::Empty},
+				{State::Falling, State::Falling},
+			},
+			{
+				{State::Empty, State::Falling},
+				{State::Empty, State::Falling},
+				{State::Falling, State::Falling},
+			},
+			{
+				{State::Empty, State::Falling, State::Empty},
+				{State::Falling, State::Falling, State::Falling},
+			},
+			{
+				{State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Falling, State::Falling},
+			},
+			{
+				{State::Empty, State::Falling, State::Falling},
+				{State::Falling, State::Falling, State::Empty},
+			},
+			{
+				{State::Falling, State::Falling},
+				{State::Falling, State::Falling},
+			},
+			{
+				{State::Falling, State::Falling, State::Falling, State::Falling},
+			},
+		});
+		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
+
+		stampRandomShape();
+	}
+	void stampRandomShape()
+	{
+		grid.stamp(shapes[uniformDistribution(rng)], Vector2Int(0, 4), entities);
+	}
+	void ground()
+	{
+		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+		{
+			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = currentState != State::Empty ? State::Grounded : State::Empty;	
+				grid.setCell(row, column, newState, entities);
+			}
+		}
+	}
+	bool shouldGround()
+	{
+		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+		{
+			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t aboveState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
+				uint32_t currentState = grid.getCell(row, column, entities);
+				if ((aboveState == State::Falling && currentState == State::Grounded)
+					|| (row == grid.matrixSize.y-1 && currentState == State::Falling))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 	void drop()
 	{
@@ -190,8 +276,13 @@ struct PlayTetris : Screen
 		{
 			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
-				uint32_t state = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
-				grid.setCell(row, column, state, entities);
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
+				if (newState != State::Falling && currentState != State::Falling)
+				{
+					continue;
+				}
+				grid.setCell(row, column, newState, entities);
 			}
 		}
 	}
@@ -199,7 +290,15 @@ struct PlayTetris : Screen
 	{
 		if (currentTime - lastDrop > period)
 		{
-			drop();
+			if (shouldGround())
+			{
+				ground();
+				stampRandomShape();
+			}
+			else
+			{
+				drop();
+			}
 			lastDrop = currentTime;
 		}
 	}
