@@ -69,6 +69,8 @@ struct Screen
 	, bgColor(bgColor) {}
 	Screen() {}
 	virtual void loop(double currentTime) {}
+	virtual void onKeyUp(SDL_Keycode key) {}
+	virtual void onKeyDown(SDL_Keycode key) {}
 };
 
 struct Game
@@ -111,6 +113,16 @@ struct Game
 	{
 		screen->loop(currentTime);
 		render(surface, currentTime, count);
+	}
+
+	void onKeyUp(SDL_Keycode key)
+	{
+		screen->onKeyUp(key);
+	}
+
+	void onKeyDown(SDL_Keycode key)
+	{
+		screen->onKeyDown(key);
 	}
 };
 
@@ -182,6 +194,8 @@ struct PlayTetris : Screen
 	double lastDrop;
 	Grid grid;
 	std::vector<std::vector<std::vector<uint32_t>>> shapes;
+	std::vector<std::vector<uint32_t>> currentShape;
+	Vector2Int currentOffset;
 	std::uniform_int_distribution<uint32_t> uniformDistribution;
 	enum State
 	{
@@ -194,6 +208,7 @@ struct PlayTetris : Screen
 	, period(200.0)
 	, lastDrop(0.0)
 	, uniformDistribution(0, 0)
+	, currentOffset(0, 0)
 	{
 		grid = Grid(
 			Vector2Int(10, 24),
@@ -235,11 +250,13 @@ struct PlayTetris : Screen
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
 
-		stampRandomShape();
+		currentShape = stampRandomShape();
 	}
-	void stampRandomShape()
+	std::vector<std::vector<uint32_t>> stampRandomShape()
 	{
-		grid.stamp(shapes[uniformDistribution(rng)], Vector2Int(0, 4), entities);
+		auto shape = shapes[uniformDistribution(rng)];
+		grid.stamp(shape, Vector2Int(0, 4), entities);
+		return shape;
 	}
 	void ground()
 	{
@@ -253,7 +270,7 @@ struct PlayTetris : Screen
 			}
 		}
 	}
-	bool shouldGround()
+	bool canMoveDown()
 	{
 		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 		{
@@ -264,13 +281,47 @@ struct PlayTetris : Screen
 				if ((aboveState == State::Falling && currentState == State::Grounded)
 					|| (row == grid.matrixSize.y-1 && currentState == State::Falling))
 				{
-					return true;
+					return false;
 				}
 			}
 		}
-		return false;
+		return true;
 	}
-	void drop()
+	bool canMoveLeft()
+	{
+		for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+		{
+			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : State::Empty;
+				if ((newState == State::Falling && currentState == State::Grounded)
+					|| (column == 0 && currentState == State::Falling))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	bool canMoveRight()
+	{
+		for(int32_t column = grid.matrixSize.x-1; column >= 0 ; --column)
+		{
+			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : State::Empty;
+				if ((newState == State::Falling && currentState == State::Grounded)
+					|| (column == grid.matrixSize.x-1 && currentState == State::Falling))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	void moveDown()
 	{
 		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 		{
@@ -286,20 +337,79 @@ struct PlayTetris : Screen
 			}
 		}
 	}
+	void moveLeft()
+	{
+		for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+		{
+			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : State::Empty;
+				if (newState != State::Falling && currentState != State::Falling)
+				{
+					continue;
+				}
+				grid.setCell(row, column, newState, entities);
+			}
+		}
+	}
+	void moveRight()
+	{
+		for(int32_t column = grid.matrixSize.x-1; column >= 0 ; --column)
+		{
+			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+			{
+				uint32_t currentState = grid.getCell(row, column, entities);
+				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : State::Empty;
+				if (newState != State::Falling && currentState != State::Falling)
+				{
+					continue;
+				}
+				grid.setCell(row, column, newState, entities);
+			}
+		}
+	}
 	void loop(double currentTime) override
 	{
 		if (currentTime - lastDrop > period)
 		{
-			if (shouldGround())
+			if (!canMoveDown())
 			{
 				ground();
-				stampRandomShape();
+				currentShape = stampRandomShape();
 			}
 			else
 			{
-				drop();
+				moveDown();
 			}
 			lastDrop = currentTime;
+		}
+	}
+	void onKeyDown(SDL_Keycode key) override
+	{
+		printf("Key: %d\n", key);
+		switch (key)
+		{
+			case SDLK_LEFT:
+			{
+				if (canMoveLeft())
+				{
+					moveLeft();
+				}
+				break;
+			}
+			case SDLK_RIGHT:
+			{
+				if (canMoveRight())
+				{
+					moveRight();
+				}
+				break;
+			}
+			default:
+			{
+				break;
+			}
 		}
 	}
 };
@@ -325,7 +435,28 @@ int main()
 		SDL_Event e;
 		while(SDL_PollEvent(&e))
 		{
-			if(e.type == SDL_QUIT) std::terminate();
+			switch (e.type)
+			{
+				case SDL_QUIT:
+				{
+					std::terminate();
+					break;
+				}
+				case SDL_KEYUP:
+				{
+					game.onKeyUp(e.key.keysym.sym);
+					break;
+				}
+				case SDL_KEYDOWN:
+				{
+					game.onKeyDown(e.key.keysym.sym);
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
 		}
 
 		count += 1;
