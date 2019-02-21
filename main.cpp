@@ -182,7 +182,7 @@ struct Grid
 
 			for (int32_t column = 0; column < shape[row].size(); ++column)
 			{
-				setCell(row+offset.x, column+offset.y, shape[row][column], entities);
+				setCell(row+offset.y, column+offset.x, shape[row][column], entities);
 			}
 		}
 	}
@@ -219,54 +219,88 @@ struct PlayTetris : Screen
 
 		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
 			{
-				{State::Falling, State::Empty},
-				{State::Falling, State::Empty},
-				{State::Falling, State::Falling},
+				{State::Empty, State::Falling, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
-				{State::Empty, State::Falling},
-				{State::Empty, State::Falling},
-				{State::Falling, State::Falling},
+				{State::Empty, State::Empty, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Falling, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
-				{State::Empty, State::Falling, State::Empty},
-				{State::Falling, State::Falling, State::Falling},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Empty, State::Empty},
+				{State::Falling, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
-				{State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Falling, State::Falling},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
+				{State::Falling, State::Falling, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
-				{State::Empty, State::Falling, State::Falling},
-				{State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Falling, State::Falling, State::Empty, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
-				{State::Falling, State::Falling},
-				{State::Falling, State::Falling},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Falling, State::Falling, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 			{
+				{State::Empty, State::Empty, State::Empty, State::Empty},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 				{State::Falling, State::Falling, State::Falling, State::Falling},
+				{State::Empty, State::Empty, State::Empty, State::Empty},
 			},
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
 
-		currentShape = stampRandomShape();
+		stampRandomShape();
 	}
-	std::vector<std::vector<uint32_t>> stampRandomShape()
+	void stampRandomShape()
 	{
+		currentOffset = Vector2Int(3, 0);
 		auto shape = shapes[uniformDistribution(rng)];
-		grid.stamp(shape, Vector2Int(0, 4), entities);
-		return shape;
+		grid.stamp(shape, currentOffset, entities);
+		currentShape = shape;
 	}
 	void ground()
 	{
 		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 		{
-			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
 				uint32_t newState = currentState != State::Empty ? State::Grounded : State::Empty;	
 				grid.setCell(row, column, newState, entities);
+			}
+		}
+	}
+	void clearRows()
+	{
+		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+		{
+			bool isFilled = true;
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t state = grid.getCell(row, column, entities);
+				isFilled = isFilled && state == State::Grounded;
+			}
+			if (isFilled)
+			{
+				for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+				{
+					grid.setCell(row, column, State::Empty, entities);
+				}
+				moveDown(row, State::Grounded);
 			}
 		}
 	}
@@ -321,21 +355,23 @@ struct PlayTetris : Screen
 		}
 		return true;
 	}
-	void moveDown()
+	void moveDown(int32_t fromRow = -1, uint32_t movingState = State::Falling)
 	{
-		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
+		fromRow = fromRow < 0 ? grid.matrixSize.y-1 : fromRow;
+		for (int32_t row = fromRow; row >= 0; --row)
 		{
 			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
 				uint32_t newState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
-				if (newState != State::Falling && currentState != State::Falling)
+				if (newState != movingState && currentState != movingState)
 				{
 					continue;
 				}
 				grid.setCell(row, column, newState, entities);
 			}
 		}
+		currentOffset.y += 1;
 	}
 	void moveLeft()
 	{
@@ -352,6 +388,7 @@ struct PlayTetris : Screen
 				grid.setCell(row, column, newState, entities);
 			}
 		}
+		currentOffset.x -= 1;
 	}
 	void moveRight()
 	{
@@ -368,6 +405,52 @@ struct PlayTetris : Screen
 				grid.setCell(row, column, newState, entities);
 			}
 		}
+		currentOffset.x += 1;
+	}
+	void rotate()
+	{
+		Vector2Int co = currentOffset;
+		for(int32_t x = 0; x < 2; ++x)
+		{
+			for (int32_t y = x; y < 4-x-1; ++y)
+			{
+				uint32_t tempState = grid.getCell(co.y + y, co.x + x, entities);
+
+				grid.setCell(co.y + y, co.x + x, grid.getCell(co.y + 4 - 1 - x, co.x + y, entities), entities);
+				grid.setCell(co.y + 4 - 1 - x, co.x + y, grid.getCell(co.y + 4 - 1 - y, co.x + 4 - 1 - x, entities), entities);
+				grid.setCell(co.y + 4 - 1 - y, co.x + 4 - 1 - x, grid.getCell(co.y + x, co.x + 4 - 1 - y, entities), entities);
+				grid.setCell(co.y + x, co.x + 4 - 1 - y, tempState, entities);
+			}
+		}
+	}
+	bool isCoordinateFree(int32_t y, int32_t x)
+	{
+		if (x < 0 || y < 0 || x >= grid.matrixSize.x || y >= grid.matrixSize.y)
+		{
+			printf("return false %d x %d\n", x, y);
+			return false;
+		}
+		uint32_t state = grid.getCell(y, x, entities);
+		return state != State::Grounded;
+	}
+	bool canRotate()
+	{
+		Vector2Int co = currentOffset;
+		for(int32_t x = 0; x < 2; ++x)
+		{
+			for (int32_t y = x; y < 4-x-1; ++y)
+			{
+				bool isFree = isCoordinateFree(co.y + y, co.x + x)
+					&& isCoordinateFree(co.y + 4 - 1 - x, co.x + y)
+					&& isCoordinateFree(co.y + 4 - 1 - y, co.x + 4 - 1 - x)
+					&& isCoordinateFree(co.y + x, co.x + 4 - 1 - y);
+				if (!isFree)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 	void loop(double currentTime) override
 	{
@@ -376,7 +459,8 @@ struct PlayTetris : Screen
 			if (!canMoveDown())
 			{
 				ground();
-				currentShape = stampRandomShape();
+				clearRows();
+				stampRandomShape();
 			}
 			else
 			{
@@ -387,7 +471,6 @@ struct PlayTetris : Screen
 	}
 	void onKeyDown(SDL_Keycode key) override
 	{
-		printf("Key: %d\n", key);
 		switch (key)
 		{
 			case SDLK_LEFT:
@@ -405,6 +488,13 @@ struct PlayTetris : Screen
 					moveRight();
 				}
 				break;
+			}
+			case SDLK_UP:
+			{
+				if (canRotate())
+				{
+					rotate();
+				}
 			}
 			default:
 			{
