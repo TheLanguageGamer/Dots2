@@ -149,7 +149,7 @@ struct Grid
 				float x = i*cellSize.x + cellSize.x/2;
 				float y = j*cellSize.y + cellSize.y/2;
 				entities.push_back(createCircle(x, y, cellSize.x/2.0-cellPadding/2.0, 0xddddddff));
-				entities.push_back(createCircle(x+2.5, y+1.5, cellSize.x/2.0-cellPadding/2.0, 0x0));
+				entities.push_back(createCircle(x+0.75*cellPadding, y+0.5*cellPadding, cellSize.x/2.0-cellPadding/2.0, 0x0));
 			}
 		}
 	}
@@ -185,6 +185,11 @@ struct Grid
 				setCell(row+offset.y, column+offset.x, shape[row][column], entities);
 			}
 		}
+	}
+
+	bool isValidCoordinate(Vector2Int a)
+	{
+		return a.x >= 0 && a.y >= 0 && a.x < matrixSize.x && a.y < matrixSize.y;
 	}
 };
 
@@ -267,8 +272,9 @@ struct PlayTetris : Screen
 	}
 	void stampRandomShape()
 	{
-		currentOffset = Vector2Int(3, 0);
+		currentOffset = Vector2Int(grid.matrixSize.x/2-2, 0);
 		auto shape = shapes[uniformDistribution(rng)];
+		//auto shape = shapes[6];
 		grid.stamp(shape, currentOffset, entities);
 		currentShape = shape;
 	}
@@ -301,6 +307,7 @@ struct PlayTetris : Screen
 					grid.setCell(row, column, State::Empty, entities);
 				}
 				moveDown(row, State::Grounded);
+				row += 1;
 			}
 		}
 	}
@@ -364,11 +371,15 @@ struct PlayTetris : Screen
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
 				uint32_t newState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
-				if (newState != movingState && currentState != movingState)
+				if (currentState == movingState && newState != movingState)
 				{
-					continue;
+					newState = State::Empty;
 				}
-				grid.setCell(row, column, newState, entities);
+				if ((currentState == movingState && newState == State::Empty)
+					|| (currentState == State::Empty && newState == movingState))
+				{
+					grid.setCell(row, column, newState, entities);
+				}
 			}
 		}
 		currentOffset.y += 1;
@@ -381,11 +392,15 @@ struct PlayTetris : Screen
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
 				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : State::Empty;
-				if (newState != State::Falling && currentState != State::Falling)
+				if (currentState == State::Falling && newState == State::Grounded)
 				{
-					continue;
+					newState = State::Empty;
 				}
-				grid.setCell(row, column, newState, entities);
+				if ((currentState == State::Falling && newState == State::Empty)
+					|| (currentState == State::Empty && newState == State::Falling))
+				{
+					grid.setCell(row, column, newState, entities);
+				}
 			}
 		}
 		currentOffset.x -= 1;
@@ -398,14 +413,35 @@ struct PlayTetris : Screen
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
 				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : State::Empty;
-				if (newState != State::Falling && currentState != State::Falling)
+				if (currentState == State::Falling && newState == State::Grounded)
 				{
-					continue;
+					newState = State::Empty;
 				}
-				grid.setCell(row, column, newState, entities);
+				if ((currentState == State::Falling && newState == State::Empty)
+					|| (currentState == State::Empty && newState == State::Falling))
+				{
+					grid.setCell(row, column, newState, entities);
+				}
 			}
 		}
 		currentOffset.x += 1;
+	}
+	void setCellAux(Vector2Int coord, int64_t newState)
+	{
+		if (newState < 0)
+		{
+			return;
+		}
+		if (!grid.isValidCoordinate(coord))
+		{
+			return;
+		}
+		uint32_t state = grid.getCell(coord.y, coord.x, entities);
+		if (state == State::Grounded || newState == State::Grounded)
+		{
+			return;
+		}
+		grid.setCell(coord.y, coord.x, newState, entities);
 	}
 	void rotate()
 	{
@@ -414,24 +450,41 @@ struct PlayTetris : Screen
 		{
 			for (int32_t y = x; y < 4-x-1; ++y)
 			{
-				uint32_t tempState = grid.getCell(co.y + y, co.x + x, entities);
+				Vector2Int coord1(co.x + x, co.y + y);
+				Vector2Int coord2(co.x + y, co.y + 4 - 1 - x);
+				Vector2Int coord3(co.x + 4 - 1 - x, co.y + 4 - 1 - y);
+				Vector2Int coord4(co.x + 4 - 1 - y, co.y + x);
 
-				grid.setCell(co.y + y, co.x + x, grid.getCell(co.y + 4 - 1 - x, co.x + y, entities), entities);
-				grid.setCell(co.y + 4 - 1 - x, co.x + y, grid.getCell(co.y + 4 - 1 - y, co.x + 4 - 1 - x, entities), entities);
-				grid.setCell(co.y + 4 - 1 - y, co.x + 4 - 1 - x, grid.getCell(co.y + x, co.x + 4 - 1 - y, entities), entities);
-				grid.setCell(co.y + x, co.x + 4 - 1 - y, tempState, entities);
+				int64_t state1 = grid.isValidCoordinate(coord1) ?  grid.getCell(coord1.y, coord1.x, entities) : -1;
+				int64_t state2 = grid.isValidCoordinate(coord2) ?  grid.getCell(coord2.y, coord2.x, entities) : -1;
+				int64_t state3 = grid.isValidCoordinate(coord3) ?  grid.getCell(coord3.y, coord3.x, entities) : -1;
+				int64_t state4 = grid.isValidCoordinate(coord4) ?  grid.getCell(coord4.y, coord4.x, entities) : -1;
+
+				setCellAux(coord1, state2);
+				setCellAux(coord2, state3);
+				setCellAux(coord3, state4);
+				setCellAux(coord4, state1);
 			}
 		}
 	}
-	bool isCoordinateFree(int32_t y, int32_t x)
+	bool canSwap(const Vector2Int a, Vector2Int b)
 	{
-		if (x < 0 || y < 0 || x >= grid.matrixSize.x || y >= grid.matrixSize.y)
+		bool aInBounds = grid.isValidCoordinate(a);
+		bool bInBounds = grid.isValidCoordinate(b);
+		if (aInBounds && !bInBounds)
 		{
-			printf("return false %d x %d\n", x, y);
-			return false;
+			uint32_t stateA = grid.getCell(a.y, a.x, entities);
+			return stateA != State::Falling;
 		}
-		uint32_t state = grid.getCell(y, x, entities);
-		return state != State::Grounded;
+		if (bInBounds && !aInBounds)
+		{
+			uint32_t stateB = grid.getCell(b.y, b.x, entities);
+			return stateB != State::Falling;
+		}
+		uint32_t stateA = grid.getCell(a.y, a.x, entities);
+		uint32_t stateB = grid.getCell(b.y, b.x, entities);
+		return !((stateA == State::Falling && stateB == State::Grounded)
+				|| (stateB == State::Falling && stateA == State::Grounded));
 	}
 	bool canRotate()
 	{
@@ -440,10 +493,15 @@ struct PlayTetris : Screen
 		{
 			for (int32_t y = x; y < 4-x-1; ++y)
 			{
-				bool isFree = isCoordinateFree(co.y + y, co.x + x)
-					&& isCoordinateFree(co.y + 4 - 1 - x, co.x + y)
-					&& isCoordinateFree(co.y + 4 - 1 - y, co.x + 4 - 1 - x)
-					&& isCoordinateFree(co.y + x, co.x + 4 - 1 - y);
+				Vector2Int coord1(co.x + x, co.y + y);
+				Vector2Int coord2(co.x + y, co.y + 4 - 1 - x);
+				Vector2Int coord3(co.x + 4 - 1 - x, co.y + 4 - 1);
+				Vector2Int coord4(co.x + 4 - 1 - y, co.y + x);
+
+				bool isFree = canSwap(coord1, coord2)
+					&& canSwap(coord2, coord3)
+					&& canSwap(coord3, coord4)
+					&& canSwap(coord4, coord1);
 				if (!isFree)
 				{
 					return false;
@@ -473,6 +531,15 @@ struct PlayTetris : Screen
 	{
 		switch (key)
 		{
+			case SDLK_DOWN:
+			case SDLK_SPACE:
+			{
+				while (canMoveDown())
+				{
+					moveDown();
+				}
+				break;
+			}
 			case SDLK_LEFT:
 			{
 				if (canMoveLeft())
