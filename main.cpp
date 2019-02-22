@@ -162,14 +162,41 @@ struct Grid
 		return index;
 	}
 
+	uint32_t getCellBackgroundIndex(uint32_t row, uint32_t column)
+	{
+		uint32_t index = startIndex + 2*matrixSize.y*column + 2*row;
+		return index;
+	}
+
 	uint32_t getCell(uint32_t row, uint32_t column, std::vector<Entity>& entities)
 	{
-		return entities[getCellIndex(row, column)].color;
+		return (entities[getCellIndex(row, column)].color) >> 8;
+	}
+
+	uint32_t getCellVisibility(uint32_t row, uint32_t column, std::vector<Entity>& entities)
+	{
+		uint32_t color = entities[getCellBackgroundIndex(row, column)].color;
+		return color & 0xff;
+	}
+
+	void setCellVisibility(uint32_t row, uint32_t column, uint32_t visibility, std::vector<Entity>& entities)
+	{
+		uint32_t bgColor = entities[getCellBackgroundIndex(row, column)].color;
+		uint32_t cellColor = entities[getCellIndex(row, column)].color;
+		uint32_t newBgColor = (bgColor & 0xffffff00) | visibility;
+		uint32_t newCellColor = (cellColor & 0xffffff00) | visibility;
+		entities[getCellBackgroundIndex(row, column)].color = newBgColor;
+		entities[getCellIndex(row, column)].color = newCellColor;
 	}
 
 	void setCell(uint32_t row, uint32_t column, uint32_t state, std::vector<Entity>& entities)
 	{
-		entities[getCellIndex(row, column)].color = state;
+		uint32_t color = entities[getCellIndex(row, column)].color;
+		uint32_t visibility = color & 0xff;
+		uint32_t newVisibility = state > 0 ? getCellVisibility(row, column, entities) : 0x0;
+		uint32_t newColor = (state << 8) | newVisibility;
+		entities[getCellIndex(row, column)].color = newColor;
+		//printf("Cell set to: %u\n", newColor);
 	}
 
 	void stamp(
@@ -205,8 +232,8 @@ struct PlayTetris : Screen
 	enum State
 	{
 		Empty = 0x0,
-		Falling = 0xff9900ff,
-		Grounded = 0x00cc66ff
+		Falling = 0xff9900,
+		Grounded = 0x00cc66
 	};
 	PlayTetris(Vector2 screenSize, uint32_t bgColor)
 	: Screen(screenSize, bgColor)
@@ -267,6 +294,14 @@ struct PlayTetris : Screen
 			},
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
+
+		for (int32_t row = 0; row < 3; ++row)
+		{
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				grid.setCellVisibility(row, column, 0x0, entities);
+			}
+		}
 
 		stampRandomShape();
 	}
