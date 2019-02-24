@@ -8,6 +8,7 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #endif
 
 std::random_device rd;
@@ -277,10 +278,16 @@ struct Component
 			}
 		}
 
-		float newX = parentPosition.x + (parentPosition.x+parentSize.x)*relativePosition.x - anchorPoint.x*newScreenSize.x + offsetPosition.x;
-		float newY = parentPosition.y + (parentPosition.x+parentSize.y)*relativePosition.y - anchorPoint.y*newScreenSize.y + offsetPosition.y;
+		float newX = parentPosition.x + (parentSize.x)*relativePosition.x - anchorPoint.x*newScreenSize.x + offsetPosition.x;
+		float newY = parentPosition.y + (parentSize.y)*relativePosition.y - anchorPoint.y*newScreenSize.y + offsetPosition.y;
 
 		Vector2 newScreenPosition = Vector2(newX, newY);
+
+		printf("\n\nComponent.onLayout parentPosition: %4.2f x %4.2f\n", parentPosition.x, parentPosition.y);
+		printf("Component.onLayout screenPosition: %4.2f x %4.2f\n", screenPosition.x, screenPosition.y);
+		printf("Component.onLayout newScreenPosition: %4.2f x %4.2f\n", newScreenPosition.x, newScreenPosition.y);
+		printf("Component.onLayout screenSize: %4.2f x %4.2f\n", screenSize.x, screenSize.y);
+		printf("Component.onLayout newScreenSize: %4.2f x %4.2f\n", newScreenSize.x, newScreenSize.y);
 		
 		float deltaX = newScreenPosition.x - screenPosition.x;
 		float deltaY = newScreenPosition.y - screenPosition.y;
@@ -295,10 +302,13 @@ struct Component
 
 			entities[index].position = Vector2(newX, newY);
 
-			float newWidth = (entitySize.x/screenSize.x)*newScreenSize.x;
-			float newHeight = (entitySize.y/screenSize.y)*newScreenSize.y;
+			if (entities[index].type != Type::Text)
+			{
+				float newWidth = (entitySize.x/screenSize.x)*newScreenSize.x;
+				float newHeight = (entitySize.y/screenSize.y)*newScreenSize.y;
 
-			entities[index].size = Vector2(newWidth, newHeight);
+				entities[index].size = Vector2(newWidth, newHeight);
+			}
 		}
 		screenPosition = newScreenPosition;
 		screenSize = newScreenSize;
@@ -409,6 +419,43 @@ struct TextButton : Component
 	}
 };
 
+struct TextList : Component
+{
+	TextList(const Vector2& relativePosition,
+			 const Vector2& offsetPosition,
+			 const Vector2& anchorPoint,
+			 float fontSize,
+			 std::vector<std::string> texts,
+			 std::vector<Entity>& entities)
+	: Component(relativePosition, offsetPosition, Vector2(), Vector2(), anchorPoint)
+	{
+		int32_t startIndex = entities.size();
+		float rowHeight = fontSize*1.2;
+		float width = 0.0;
+		for (int32_t i = 0; i < texts.size(); ++i)
+		{
+			float entityWidth = texts[i].size()*fontSize*0.6;
+			width = entityWidth > width ? entityWidth : width;
+			entities.push_back(createText(texts[i], 0.0, rowHeight*(i+1), fontSize, 0x000000ff));
+		}
+		screenSize = Vector2(width, texts.size()*rowHeight);
+		offsetSize = screenSize;
+		int32_t endIndex = entities.size();
+		indexSpan = Vector2Int(startIndex, endIndex);
+	}
+
+	TextList() {}
+
+	void setTextForIndex(int64_t value, uint32_t relativeIndex, std::vector<Entity>& entities)
+	{
+		uint32_t index = indexSpan.x + relativeIndex;
+		char buffer[256];
+		sprintf(buffer, "%lld", value);
+		uint32_t id = getIdForText(buffer);
+		entities[index].id = id;
+	}
+};
+
 struct Grid : Component
 {
 	Vector2Int matrixSize;
@@ -513,11 +560,19 @@ struct PlayTetris : Screen
 	double period;
 	double lastDrop;
 	Grid grid;
+
 	TextButton pauseButton;
+	TextList textList;
+
+	uint32_t level;
+	uint32_t lines;
+	uint32_t score;
+
 	std::vector<std::vector<std::vector<uint32_t>>> shapes;
 	std::vector<std::vector<uint32_t>> currentShape;
 	Vector2Int currentOffset;
 	std::uniform_int_distribution<uint32_t> uniformDistribution;
+	
 	enum State
 	{
 		Empty = 0x0,
@@ -530,25 +585,34 @@ struct PlayTetris : Screen
 	, lastDrop(0.0)
 	, uniformDistribution(0, 0)
 	, currentOffset(0, 0)
+	, level(1)
+	, lines(0)
+	, score(0)
 	{
-		 // const Vector2& relativePosition,
- 		//  const Vector2& offsetPosition,
- 		//  const Vector2& relativeSize,
- 		//  const Vector2& offsetSize,
- 		//  const Vector2& anchorPoint,
- 		//  Vector2Int matrixSize,
-		 // Vector2 cellSize,
-		 // float cellPadding,
-		 // std::vector<Entity>& entities
 		grid = Grid(Vector2(0.5, 0.5),
 					Vector2(0.0, 0.0),
 					Vector2(0.5, 0.8),
 					Vector2(0.0, 0.0),
-					Vector2(0.5, 0.5),
+					Vector2(0.5, 0.5 + 1.0/12.0),
 					Vector2Int(10, 24),
 					Vector2(15, 15),
 					2.0f,
 					entities);
+
+		textList = TextList(Vector2(1.0, 1/6.0),
+							Vector2(20.0, 0.0),
+							Vector2(0.0, 0.0),
+							30.0,
+							{ "LEVEL", "1", "LINES", "0", "SCORE", "0" },
+							entities);
+
+		pauseButton = TextButton("PAUSE",
+								 Vector2(1.0,  0.0),
+								 Vector2(-10.0, 10.0),
+								 Vector2(1.0, 0.0),
+								 30,
+								 0xaaaaffff,
+								 entities);
 
 		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
 			{
@@ -596,17 +660,6 @@ struct PlayTetris : Screen
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
 
-		pauseButton = TextButton("PAUSE",
-								 Vector2(1.0,  0.0),
-								 Vector2(-10.0, 10.0),
-								 Vector2(1.0, 0.0),
-								 30,
-								 0xaaaaffff,
-								 entities);
-
-		entities.push_back(createCircle(0.0, 0.0, 30.0, 0x6666ffff));
-
-
 		for (int32_t row = 0; row < 3; ++row)
 		{
 			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
@@ -616,6 +669,7 @@ struct PlayTetris : Screen
 		}
 
 		stampRandomShape();
+		updatePrograss(0);
 	}
 	void stampRandomShape()
 	{
@@ -637,8 +691,44 @@ struct PlayTetris : Screen
 			}
 		}
 	}
+	void updatePrograss(uint32_t rowsCleared)
+	{
+		lines += rowsCleared;
+		level = lines/10 + 1;
+		if (rowsCleared == 1)
+		{
+			score += 100;
+		}
+		else if (rowsCleared == 2)
+		{
+			score += 300;
+		}
+		else if (rowsCleared == 3)
+		{
+			score += 500;
+		}
+		else if (rowsCleared == 4)
+		{
+			score += 800;
+		}
+		else if (rowsCleared == 5)
+		{
+			score += 1100;
+		}
+		else if (rowsCleared == 6)
+		{
+			score += 1500;
+		}
+
+		period = 600.0/(float)level;
+
+		textList.setTextForIndex(level, 1, entities);
+		textList.setTextForIndex(lines, 3, entities);
+		textList.setTextForIndex(score, 5, entities);
+	}
 	void clearRows()
 	{
+		uint32_t rowsCleared = 0;
 		for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 		{
 			bool isFilled = true;
@@ -649,6 +739,7 @@ struct PlayTetris : Screen
 			}
 			if (isFilled)
 			{
+				rowsCleared += 1;
 				for (int32_t column = 0; column < grid.matrixSize.x; ++column)
 				{
 					grid.setCell(row, column, State::Empty, entities);
@@ -657,6 +748,7 @@ struct PlayTetris : Screen
 				row += 1;
 			}
 		}
+		updatePrograss(rowsCleared);
 	}
 	bool canMoveDown()
 	{
@@ -943,6 +1035,7 @@ struct PlayTetris : Screen
 	{
 		pauseButton.onLayout(parentPosition, parentSize, entities);
 		grid.onLayout(parentPosition, parentSize, entities);
+		textList.onLayout(grid.screenPosition, grid.screenSize, entities);
 	}
 };
 
@@ -966,6 +1059,9 @@ EM_JS(float, getWindowHeight, (), {
 
 std::function<void()> loop;
 void main_loop() { loop(); }
+
+std::function<void()> onFocusImpl;
+int onFocus(int eventType, const EmscriptenFocusEvent *e, void *userData) { onFocusImpl(); return 0; }
 
 int main()
 {
@@ -1033,7 +1129,17 @@ int main()
 		lastTime = currentTime;
 	};
 
+	onFocusImpl = [&]
+	{
+		printf("emscripten_set_focus_callback\n");
+	};
+
 	emscripten_set_main_loop(main_loop, 0, true);
+	emscripten_set_focus_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, onFocus);
+	// emscripten_set_blur_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, [](int eventType, const EmscriptenFocusEvent *e, void *userData){
+	// 	printf("emscripten_set_focus_callback\n");
+	// });
+
 
 	SDL_Quit();
 
