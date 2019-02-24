@@ -1,5 +1,6 @@
 
 #include <vector>
+#include <unordered_map>
 #include <functional>
 #include <random>
 #include <stdio.h>
@@ -36,27 +37,82 @@ struct Vector2Int
 	, y(y) {}
 };
 
+static bool doesPointIntersectRect(const Vector2& point,
+								   const Vector2& rectPosition,
+								   const Vector2& rectSize)
+{
+	return point.x >= rectPosition.x
+		   && point.x <= rectPosition.x + rectSize.x
+		   && point.y >= rectPosition.y
+		   && point.y <= rectPosition.y + rectSize.y; 
+}
+
 enum Type
 {
-	Circle
+	Circle,
+	Rectangle,
+	Text
 };
+
+std::vector<std::string> idToString;
+std::unordered_map<std::string, uint32_t> stringToId;
 
 struct Entity
 {
 	Vector2 position;
 	Vector2 size;
 	uint32_t color;
+	uint32_t id;
 	Type type;
 	Entity(Type type, Vector2 position, Vector2 size, uint32_t color)
 	: type(type)
 	, position(position)
 	, size(size)
 	, color(color) {}
+	Entity(Type type, Vector2 position, Vector2 size, uint32_t color, uint32_t id)
+	: type(type)
+	, position(position)
+	, size(size)
+	, color(color)
+	, id(id) {}
+
+	void shift(const Vector2& delta)
+	{
+		position.x += delta.x;
+		position.y += delta.y;
+	}
 };
 
 static Entity createCircle(float x, float y, float radius, uint32_t color)
 {
 	return Entity(Type::Circle, Vector2(x, y), Vector2(radius*2.0, radius*2.0), color);
+}
+
+static Entity createRectangle(const Vector2& position, const Vector2& size, uint32_t color)
+{
+	return Entity(Type::Rectangle, position, size, color);
+}
+
+static uint32_t getIdForText(const std::string& text)
+{
+	if (stringToId.find(text) == stringToId.end())
+	{
+		uint32_t id = idToString.size();
+		idToString.push_back(text);
+		stringToId[text] = id;
+	}
+	return stringToId[text];
+}
+
+static const std::string& getTextForId(uint32_t id)
+{
+	return idToString[id];
+}
+
+static Entity createText(const std::string& text, float x, float y, float fontSize, uint32_t color)
+{
+	uint32_t id = getIdForText(text);
+	return Entity(Type::Text, Vector2(x, y), Vector2(fontSize, fontSize), color, id);
 }
 
 struct Screen
@@ -68,9 +124,11 @@ struct Screen
 	: screenSize(screenSize)
 	, bgColor(bgColor) {}
 	Screen() {}
-	virtual void loop(double currentTime) {}
+	virtual void loop(double currentTime, const std::vector<bool>& keyStates) {}
 	virtual void onKeyUp(SDL_Keycode key) {}
 	virtual void onKeyDown(SDL_Keycode key) {}
+	virtual void onMouseButton1Down(const Vector2 position) {}
+	virtual void onMouseButton1Up(const Vector2 position) {}
 };
 
 struct Game
@@ -78,10 +136,12 @@ struct Game
 	Screen* screen;
 	Vector2 screenSize;
 	uint32_t bgColor;
+	std::vector<bool> keyStates;
 	Game(Vector2 screenSize, uint32_t bgColor)
 	: screenSize(screenSize)
 	, bgColor(bgColor)
-	, screen(nullptr) {}
+	, screen(nullptr)
+	, keyStates(std::vector<bool>(4096, false)) {}
 
 	void setScreen(Screen* s) { screen = s;}
 
@@ -104,33 +164,188 @@ struct Game
 						entity.color);
 					break;
 				}
+				case Type::Rectangle:
+				{
+					boxColor(surface,
+						entity.position.x,
+						entity.position.y,
+						entity.position.x + entity.size.x,
+						entity.position.y + entity.size.y,
+						entity.color);
+					break;
+				}
+				case Type::Text:
+				{
+					const std::string& text = getTextForId(entity.id);
+					filledTextColor(surface,
+						text.c_str(),
+						entity.position.x,
+						entity.position.y,
+						entity.color);
+					break;
+				}
 			}
 		}
+		// std::string text("WHAT");
+		// filledTextColor(surface, text.c_str(), 50, 50, 0x000000ff);
 		SDL_UpdateRect(surface, 0, 0, 0, 0);
 	}
 
 	void loop(SDL_Surface* surface, double currentTime, uint64_t count)
 	{
-		screen->loop(currentTime);
+		screen->loop(currentTime, keyStates);
 		render(surface, currentTime, count);
 	}
 
 	void onKeyUp(SDL_Keycode key)
 	{
+		keyStates[key] = false;
 		screen->onKeyUp(key);
 	}
 
 	void onKeyDown(SDL_Keycode key)
 	{
+		keyStates[key] = true;
 		screen->onKeyDown(key);
+	}
+
+	void onMouseButton1Down(const Vector2 position)
+	{
+		screen->onMouseButton1Down(position);
+	}
+
+	void onMouseButton1Up(const Vector2 position)
+	{
+		screen->onMouseButton1Up(position);
 	}
 };
 
-struct Grid
+struct Component
+{
+	Vector2 position;
+	Vector2 size;
+	Vector2Int indexSpan;
+	Component(Vector2 position, Vector2 size)
+	: position(position)
+	, size(size) {}
+
+	void setPosition(const Vector2& newPosition, std::vector<Entity>& entities)
+	{
+		float deltaX = newPosition.x - position.x;
+		float deltaY = newPosition.y - position.y;
+		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
+		{
+			const Vector2& entityPosition = entities[index].position;
+			float newX = entityPosition.x + deltaX;
+			float newY = entityPosition.y + deltaY;
+			entities[index].position = Vector2(newX, newY);
+		}
+	}
+};
+
+struct TextButton : Component
+{
+	uint32_t shadowIndex;
+	uint32_t outerIndex;
+	uint32_t innerIndex;
+	uint32_t textIndex;
+	float activationMargin;
+	bool isDown;
+	TextButton(const std::string& text,
+			   const Vector2& position,
+			   const float fontSize,
+			   const uint32_t color,
+			   std::vector<Entity>& entities)
+	: Component(position, Vector2())
+	, shadowIndex(0)
+	, outerIndex(0)
+	, innerIndex(0)
+	, textIndex(0)
+	, activationMargin(0)
+	, isDown(false)
+	{
+		static const float CROP = 0.6;
+		
+		float outerMargin = fontSize*0.06;
+
+		float innerMargin = fontSize*0.1;
+		uint64_t length = text.size();
+		float innerX = position.x + outerMargin;
+		float innerY = position.y + outerMargin;
+		float innerWidth = length*fontSize*CROP + innerMargin*2.0;
+		float innerHeight = fontSize*1.2;
+
+		float outerWidth = innerWidth + outerMargin*2.0;
+		float outerHeight = innerHeight + outerMargin*2.0;
+
+		float margin = innerMargin + outerMargin;
+
+		activationMargin = outerMargin*1.0;
+		float shadowX = position.x - outerMargin*1.5;
+		float shadowY = position.y - outerMargin*1.5;
+
+		shadowIndex = entities.size();
+		entities.push_back(createRectangle(Vector2(shadowX, shadowY), Vector2(outerWidth, outerHeight), 0xbbbbbbff));
+		outerIndex = entities.size();
+		entities.push_back(createRectangle(position, Vector2(outerWidth, outerHeight), 0x000000ff));
+		innerIndex = entities.size();
+		entities.push_back(createRectangle(Vector2(innerX, innerY), Vector2(innerWidth, innerHeight), color));
+		textIndex = entities.size();
+		entities.push_back(createText(text, position.x + margin, position.y + fontSize, fontSize, 0x000000ff));
+
+		size = Vector2(outerWidth, outerHeight);
+		indexSpan = Vector2Int(shadowIndex, textIndex);
+	}
+
+	TextButton()
+	: Component(Vector2(), Vector2())
+	, shadowIndex(0)
+	, outerIndex(0)
+	, innerIndex(0)
+	, textIndex(0)
+	, activationMargin(0)
+	, isDown(false) {}
+
+	void onMouseButton1Down(const Vector2& mousePosition, std::vector<Entity>& entities)
+	{
+		if (doesPointIntersectRect(mousePosition,
+								   position,
+								   size))
+		{
+			printf("TextButton.onMouseButton1Down intersection!\n");
+			Vector2 delta(-activationMargin, -activationMargin);
+			entities[outerIndex].shift(delta);
+			entities[innerIndex].shift(delta);
+			entities[textIndex].shift(delta);
+			isDown = true;
+		}
+	}
+
+	void onMouseButton1Up(const Vector2& mousePosition, std::vector<Entity>& entities)
+	{
+		if (isDown)
+		{
+			printf("TextButton.onMouseButton1Up!\n");
+			isDown = false;
+			Vector2 delta(activationMargin, activationMargin);
+			entities[outerIndex].shift(delta);
+			entities[innerIndex].shift(delta);
+			entities[textIndex].shift(delta);
+			if (doesPointIntersectRect(mousePosition,
+									   position,
+									   size))
+			{
+				printf("TextButton activation\n");
+			}
+		}
+	}
+};
+
+struct Grid : Component
 {
 	Vector2Int matrixSize;
 	Vector2 screenSize;
-	int32_t startIndex;
+
 	std::vector<uint32_t> stateColors;
 	Grid(Vector2Int matrixSize,
 		 Vector2 screenSize,
@@ -139,9 +354,9 @@ struct Grid
 		 std::vector<Entity>& entities)
 	: matrixSize(matrixSize)
 	, screenSize(screenSize)
-	, startIndex(entities.size())
+	, Component(Vector2(), Vector2())
 	{
-
+		int32_t startIndex = entities.size();
 		for (int32_t i = 0; i < matrixSize.x; ++i)
 		{
 			for( int32_t j = 0; j < matrixSize.y; ++j)
@@ -152,19 +367,21 @@ struct Grid
 				entities.push_back(createCircle(x+0.75*cellPadding, y+0.5*cellPadding, cellSize.x/2.0-cellPadding/2.0, 0x0));
 			}
 		}
+		int32_t endIndex = entities.size() - 1;
+		indexSpan = Vector2Int(startIndex, endIndex);
 	}
 	Grid()
-	: startIndex(-1) {}
+	: Component(Vector2(), Vector2()) {}
 
 	uint32_t getCellIndex(uint32_t row, uint32_t column)
 	{
-		uint32_t index = startIndex + 2*matrixSize.y*column + 2*row + 1;
+		uint32_t index = indexSpan.x + 2*matrixSize.y*column + 2*row + 1;
 		return index;
 	}
 
 	uint32_t getCellBackgroundIndex(uint32_t row, uint32_t column)
 	{
-		uint32_t index = startIndex + 2*matrixSize.y*column + 2*row;
+		uint32_t index = indexSpan.x + 2*matrixSize.y*column + 2*row;
 		return index;
 	}
 
@@ -225,6 +442,7 @@ struct PlayTetris : Screen
 	double period;
 	double lastDrop;
 	Grid grid;
+	TextButton pauseButton;
 	std::vector<std::vector<std::vector<uint32_t>>> shapes;
 	std::vector<std::vector<uint32_t>> currentShape;
 	Vector2Int currentOffset;
@@ -248,6 +466,8 @@ struct PlayTetris : Screen
 			Vector2(15, 15),
 			2.0f,
 			entities);
+
+		grid.setPosition(Vector2(30, -10), entities);
 
 		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
 			{
@@ -294,6 +514,11 @@ struct PlayTetris : Screen
 			},
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
+
+		// Entity testText1 = createText("HELLO", 10, 50, 30, 0x3f0000ff);
+		// entities.push_back(testText1);
+
+		pauseButton = TextButton("PAUSE", Vector2(200,  20), 30, 0xaaaaffff, entities);
 
 		for (int32_t row = 0; row < 3; ++row)
 		{
@@ -545,7 +770,7 @@ struct PlayTetris : Screen
 		}
 		return true;
 	}
-	void loop(double currentTime) override
+	void loop(double currentTime, const std::vector<bool>& keyStates) override
 	{
 		if (currentTime - lastDrop > period)
 		{
@@ -558,10 +783,29 @@ struct PlayTetris : Screen
 			else
 			{
 				moveDown();
+				if (keyStates[SDLK_LEFT] && canMoveLeft())
+				{
+					moveLeft();
+				}
+				if (keyStates[SDLK_RIGHT] && canMoveRight())
+				{
+					moveRight();
+				}
 			}
 			lastDrop = currentTime;
 		}
 	}
+
+	void onMouseButton1Down(const Vector2 position) override
+	{
+		pauseButton.onMouseButton1Down(position, entities);
+	}
+
+	void onMouseButton1Up(const Vector2 position) override
+	{
+		pauseButton.onMouseButton1Up(position, entities);
+	}
+
 	void onKeyDown(SDL_Keycode key) override
 	{
 		switch (key)
@@ -642,6 +886,20 @@ int main()
 				case SDL_KEYDOWN:
 				{
 					game.onKeyDown(e.key.keysym.sym);
+					break;
+				}
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
+					printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					game.onMouseButton1Down(Vector2(m->x, m->y));
+					break;
+				}
+				case SDL_MOUSEBUTTONUP:
+				{
+					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
+					printf("button up: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					game.onMouseButton1Up(Vector2(m->x, m->y));
 					break;
 				}
 				default:
