@@ -102,7 +102,7 @@
     </style>
   </head>
   <body>
-    <a href="http://emscripten.org">
+<!--     <a href="http://emscripten.org">
       <svg
    version="1.1"
    id="Layer_1"
@@ -1214,7 +1214,9 @@
     <div class="emscripten_border">
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
     </div>
-    <textarea id="output" rows="8"></textarea>
+    <textarea id="output" rows="8"></textarea> -->
+    
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
@@ -1256,26 +1258,26 @@
           return canvas;
         })(),
         setStatus: function(text) {
-          if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
-          if (text === Module.setStatus.last.text) return;
-          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
-          var now = Date.now();
-          if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
-          Module.setStatus.last.time = now;
-          Module.setStatus.last.text = text;
-          if (m) {
-            text = m[1];
-            progressElement.value = parseInt(m[2])*100;
-            progressElement.max = parseInt(m[4])*100;
-            progressElement.hidden = false;
-            spinnerElement.hidden = false;
-          } else {
-            progressElement.value = null;
-            progressElement.max = null;
-            progressElement.hidden = true;
-            if (!text) spinnerElement.style.display = 'none';
-          }
-          statusElement.innerHTML = text;
+          // if (!Module.setStatus.last) Module.setStatus.last = { time: Date.now(), text: '' };
+          // if (text === Module.setStatus.last.text) return;
+          // var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          // var now = Date.now();
+          // if (m && now - Module.setStatus.last.time < 30) return; // if this is a progress update, skip it if too soon
+          // Module.setStatus.last.time = now;
+          // Module.setStatus.last.text = text;
+          // if (m) {
+          //   text = m[1];
+          //   progressElement.value = parseInt(m[2])*100;
+          //   progressElement.max = parseInt(m[4])*100;
+          //   progressElement.hidden = false;
+          //   spinnerElement.hidden = false;
+          // } else {
+          //   progressElement.value = null;
+          //   progressElement.max = null;
+          //   progressElement.hidden = true;
+          //   if (!text) spinnerElement.style.display = 'none';
+          // }
+          // statusElement.innerHTML = text;
         },
         totalDependencies: 0,
         monitorRunDependencies: function(left) {

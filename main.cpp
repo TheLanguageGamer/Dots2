@@ -129,6 +129,7 @@ struct Screen
 	virtual void onKeyDown(SDL_Keycode key) {}
 	virtual void onMouseButton1Down(const Vector2 position) {}
 	virtual void onMouseButton1Up(const Vector2 position) {}
+	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize) {}
 };
 
 struct Game
@@ -157,8 +158,8 @@ struct Game
 				case Type::Circle:
 				{
 					filledEllipseColor(surface,
-						entity.position.x,
-						entity.position.y,
+						entity.position.x + entity.size.x/2.0,
+						entity.position.y + entity.size.y/2.0,
 						entity.size.x/2.0,
 						entity.size.y/2.0,
 						entity.color);
@@ -222,24 +223,85 @@ struct Game
 
 struct Component
 {
-	Vector2 position;
-	Vector2 size;
-	Vector2Int indexSpan;
-	Component(Vector2 position, Vector2 size)
-	: position(position)
-	, size(size) {}
+	Vector2 screenPosition;
+	Vector2 screenSize;
 
-	void setPosition(const Vector2& newPosition, std::vector<Entity>& entities)
+	Vector2 relativePosition;
+	Vector2 relativeSize;
+
+	Vector2 offsetPosition;
+	Vector2 offsetSize;
+
+	Vector2 anchorPoint;
+	float aspectRatio;
+
+	Vector2Int indexSpan;
+	Component()
+	: screenPosition(Vector2())
+	, screenSize(Vector2())
+	, relativePosition(Vector2())
+	, relativeSize(Vector2())
+	, offsetPosition(Vector2())
+	, offsetSize(Vector2())
+	, anchorPoint(Vector2())
+	, aspectRatio(-1.0f) {}
+	Component(const Vector2& relativePosition,
+ 		 	  const Vector2& offsetPosition,
+ 		 	  const Vector2& relativeSize,
+ 		 	  const Vector2& offsetSize,
+ 		 	  const Vector2& anchorPoint)
+	: relativePosition(relativePosition)
+	, offsetPosition(offsetPosition)
+	, relativeSize(relativeSize)
+	, offsetSize(offsetSize)
+	, anchorPoint(anchorPoint)
+	, aspectRatio(-1.0f) {}
+
+	void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
 	{
-		float deltaX = newPosition.x - position.x;
-		float deltaY = newPosition.y - position.y;
+		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
+		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
+
+		Vector2 newScreenSize = Vector2(newWidth, newHeight);
+		if (aspectRatio > 0.0)
+		{
+			float aspectWidth = newHeight*aspectRatio;
+			float aspectHeight = newWidth/aspectRatio;
+			if (aspectWidth < newWidth)
+			{
+				newScreenSize = Vector2(aspectWidth, newHeight);
+			}
+			else
+			{
+				newScreenSize = Vector2(newWidth, aspectHeight);
+			}
+		}
+
+		float newX = parentPosition.x + (parentPosition.x+parentSize.x)*relativePosition.x - anchorPoint.x*newScreenSize.x + offsetPosition.x;
+		float newY = parentPosition.y + (parentPosition.x+parentSize.y)*relativePosition.y - anchorPoint.y*newScreenSize.y + offsetPosition.y;
+
+		Vector2 newScreenPosition = Vector2(newX, newY);
+		
+		float deltaX = newScreenPosition.x - screenPosition.x;
+		float deltaY = newScreenPosition.y - screenPosition.y;
 		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
 		{
 			const Vector2& entityPosition = entities[index].position;
-			float newX = entityPosition.x + deltaX;
-			float newY = entityPosition.y + deltaY;
+			const Vector2& entitySize = entities[index].size;
+			float xPercentage = (entityPosition.x - screenPosition.x)/screenSize.x;
+			float yPercentage = (entityPosition.y - screenPosition.y)/screenSize.y;
+			float newX = newScreenPosition.x + xPercentage*newScreenSize.x;
+			float newY = newScreenPosition.y + yPercentage*newScreenSize.y;
+
 			entities[index].position = Vector2(newX, newY);
+
+			float newWidth = (entitySize.x/screenSize.x)*newScreenSize.x;
+			float newHeight = (entitySize.y/screenSize.y)*newScreenSize.y;
+
+			entities[index].size = Vector2(newWidth, newHeight);
 		}
+		screenPosition = newScreenPosition;
+		screenSize = newScreenSize;
 	}
 };
 
@@ -252,11 +314,13 @@ struct TextButton : Component
 	float activationMargin;
 	bool isDown;
 	TextButton(const std::string& text,
-			   const Vector2& position,
+			   const Vector2& relativePosition,
+			   const Vector2& offsetPosition,
+			   const Vector2& anchorPoint,
 			   const float fontSize,
 			   const uint32_t color,
 			   std::vector<Entity>& entities)
-	: Component(position, Vector2())
+	: Component()
 	, shadowIndex(0)
 	, outerIndex(0)
 	, innerIndex(0)
@@ -265,13 +329,17 @@ struct TextButton : Component
 	, isDown(false)
 	{
 		static const float CROP = 0.6;
+
+		this->relativePosition = relativePosition;
+		this->offsetPosition = offsetPosition;
+		this->anchorPoint = anchorPoint;
 		
 		float outerMargin = fontSize*0.06;
 
 		float innerMargin = fontSize*0.1;
 		uint64_t length = text.size();
-		float innerX = position.x + outerMargin;
-		float innerY = position.y + outerMargin;
+		float innerX = outerMargin;
+		float innerY = outerMargin;
 		float innerWidth = length*fontSize*CROP + innerMargin*2.0;
 		float innerHeight = fontSize*1.2;
 
@@ -281,25 +349,25 @@ struct TextButton : Component
 		float margin = innerMargin + outerMargin;
 
 		activationMargin = outerMargin*1.0;
-		float shadowX = position.x - outerMargin*1.5;
-		float shadowY = position.y - outerMargin*1.5;
+		float shadowX = outerMargin*1.5;
+		float shadowY = outerMargin*1.5;
 
 		shadowIndex = entities.size();
 		entities.push_back(createRectangle(Vector2(shadowX, shadowY), Vector2(outerWidth, outerHeight), 0xbbbbbbff));
 		outerIndex = entities.size();
-		entities.push_back(createRectangle(position, Vector2(outerWidth, outerHeight), 0x000000ff));
+		entities.push_back(createRectangle(Vector2(), Vector2(outerWidth, outerHeight), 0x000000ff));
 		innerIndex = entities.size();
 		entities.push_back(createRectangle(Vector2(innerX, innerY), Vector2(innerWidth, innerHeight), color));
 		textIndex = entities.size();
-		entities.push_back(createText(text, position.x + margin, position.y + fontSize, fontSize, 0x000000ff));
+		entities.push_back(createText(text, margin, fontSize, fontSize, 0x000000ff));
 
-		size = Vector2(outerWidth, outerHeight);
+		offsetSize = Vector2(outerWidth, outerHeight);
+		screenSize = Vector2(outerWidth, outerHeight);
 		indexSpan = Vector2Int(shadowIndex, textIndex);
 	}
 
 	TextButton()
-	: Component(Vector2(), Vector2())
-	, shadowIndex(0)
+	: shadowIndex(0)
 	, outerIndex(0)
 	, innerIndex(0)
 	, textIndex(0)
@@ -308,11 +376,12 @@ struct TextButton : Component
 
 	void onMouseButton1Down(const Vector2& mousePosition, std::vector<Entity>& entities)
 	{
+			printf("TextButton onMouseButton1Down\n");
 		if (doesPointIntersectRect(mousePosition,
-								   position,
-								   size))
+								   screenPosition,
+								   screenSize))
 		{
-			printf("TextButton.onMouseButton1Down intersection!\n");
+			printf("TextButton onMouseButton1Down\n");
 			Vector2 delta(-activationMargin, -activationMargin);
 			entities[outerIndex].shift(delta);
 			entities[innerIndex].shift(delta);
@@ -325,15 +394,14 @@ struct TextButton : Component
 	{
 		if (isDown)
 		{
-			printf("TextButton.onMouseButton1Up!\n");
 			isDown = false;
 			Vector2 delta(activationMargin, activationMargin);
 			entities[outerIndex].shift(delta);
 			entities[innerIndex].shift(delta);
 			entities[textIndex].shift(delta);
 			if (doesPointIntersectRect(mousePosition,
-									   position,
-									   size))
+									   screenPosition,
+									   screenSize))
 			{
 				printf("TextButton activation\n");
 			}
@@ -344,17 +412,19 @@ struct TextButton : Component
 struct Grid : Component
 {
 	Vector2Int matrixSize;
-	Vector2 screenSize;
 
 	std::vector<uint32_t> stateColors;
-	Grid(Vector2Int matrixSize,
-		 Vector2 screenSize,
+	Grid(const Vector2& relativePosition,
+ 		 const Vector2& offsetPosition,
+ 		 const Vector2& relativeSize,
+ 		 const Vector2& offsetSize,
+ 		 const Vector2& anchorPoint,
+ 		 Vector2Int matrixSize,
 		 Vector2 cellSize,
 		 float cellPadding,
 		 std::vector<Entity>& entities)
-	: matrixSize(matrixSize)
-	, screenSize(screenSize)
-	, Component(Vector2(), Vector2())
+	: Component(relativePosition, offsetPosition, relativeSize, offsetSize, anchorPoint)
+	, matrixSize(matrixSize)
 	{
 		int32_t startIndex = entities.size();
 		for (int32_t i = 0; i < matrixSize.x; ++i)
@@ -369,9 +439,10 @@ struct Grid : Component
 		}
 		int32_t endIndex = entities.size() - 1;
 		indexSpan = Vector2Int(startIndex, endIndex);
+		screenSize = Vector2(matrixSize.x*cellSize.x, matrixSize.y*cellSize.y);
+		aspectRatio = (float)matrixSize.x/(float)matrixSize.y;
 	}
-	Grid()
-	: Component(Vector2(), Vector2()) {}
+	Grid() {}
 
 	uint32_t getCellIndex(uint32_t row, uint32_t column)
 	{
@@ -460,14 +531,24 @@ struct PlayTetris : Screen
 	, uniformDistribution(0, 0)
 	, currentOffset(0, 0)
 	{
-		grid = Grid(
-			Vector2Int(10, 24),
-			screenSize,
-			Vector2(15, 15),
-			2.0f,
-			entities);
-
-		grid.setPosition(Vector2(30, -10), entities);
+		 // const Vector2& relativePosition,
+ 		//  const Vector2& offsetPosition,
+ 		//  const Vector2& relativeSize,
+ 		//  const Vector2& offsetSize,
+ 		//  const Vector2& anchorPoint,
+ 		//  Vector2Int matrixSize,
+		 // Vector2 cellSize,
+		 // float cellPadding,
+		 // std::vector<Entity>& entities
+		grid = Grid(Vector2(0.5, 0.5),
+					Vector2(0.0, 0.0),
+					Vector2(0.5, 0.8),
+					Vector2(0.0, 0.0),
+					Vector2(0.5, 0.5),
+					Vector2Int(10, 24),
+					Vector2(15, 15),
+					2.0f,
+					entities);
 
 		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
 			{
@@ -515,10 +596,16 @@ struct PlayTetris : Screen
 		});
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
 
-		// Entity testText1 = createText("HELLO", 10, 50, 30, 0x3f0000ff);
-		// entities.push_back(testText1);
+		pauseButton = TextButton("PAUSE",
+								 Vector2(1.0,  0.0),
+								 Vector2(-10.0, 10.0),
+								 Vector2(1.0, 0.0),
+								 30,
+								 0xaaaaffff,
+								 entities);
 
-		pauseButton = TextButton("PAUSE", Vector2(200,  20), 30, 0xaaaaffff, entities);
+		entities.push_back(createCircle(0.0, 0.0, 30.0, 0x6666ffff));
+
 
 		for (int32_t row = 0; row < 3; ++row)
 		{
@@ -782,12 +869,14 @@ struct PlayTetris : Screen
 			}
 			else
 			{
+				bool couldMoveLeft = canMoveLeft();
+				bool couldMoveRight = canMoveRight();
 				moveDown();
-				if (keyStates[SDLK_LEFT] && canMoveLeft())
+				if (keyStates[SDLK_LEFT] && canMoveLeft() && !couldMoveLeft)
 				{
 					moveLeft();
 				}
-				if (keyStates[SDLK_RIGHT] && canMoveRight())
+				if (keyStates[SDLK_RIGHT] && canMoveRight() && !couldMoveRight)
 				{
 					moveRight();
 				}
@@ -848,17 +937,46 @@ struct PlayTetris : Screen
 			}
 		}
 	}
+
+	void onLayout(const Vector2& parentPosition,
+				  const Vector2& parentSize) override
+	{
+		pauseButton.onLayout(parentPosition, parentSize, entities);
+		grid.onLayout(parentPosition, parentSize, entities);
+	}
 };
+
+EM_JS(float, getWindowWidth, (), {
+	var w = window,
+	    d = document,
+	    e = d.documentElement,
+	    g = d.getElementsByTagName('body')[0],
+	    x = w.innerWidth || e.clientWidth || g.clientWidth;
+	return x;
+});
+
+EM_JS(float, getWindowHeight, (), {
+	var w = window,
+	    d = document,
+	    e = d.documentElement,
+	    g = d.getElementsByTagName('body')[0],
+	    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
+	return y;
+});
 
 std::function<void()> loop;
 void main_loop() { loop(); }
 
 int main()
 {
-	Vector2 screenSize(400, 400);
+	float windowWidth = getWindowWidth();
+	float windowHeight = getWindowHeight();
+	printf("%4.2f x %4.2f\n", windowWidth, windowHeight);
+	Vector2 screenSize(windowWidth, windowHeight);
 	Game game(screenSize, 0xffffffff);
 	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff);
 	game.setScreen(playTetris);
+	playTetris->onLayout(Vector2(), screenSize);
 
 	SDL_Init(SDL_INIT_VIDEO);
 
@@ -891,14 +1009,14 @@ int main()
 				case SDL_MOUSEBUTTONDOWN:
 				{
 					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
-					printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					//printf("button down: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
 					game.onMouseButton1Down(Vector2(m->x, m->y));
 					break;
 				}
 				case SDL_MOUSEBUTTONUP:
 				{
 					SDL_MouseButtonEvent *m = (SDL_MouseButtonEvent*)&e;
-					printf("button up: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
+					//printf("button up: %d,%d  %d,%d\n", m->button, m->state, m->x, m->y);
 					game.onMouseButton1Up(Vector2(m->x, m->y));
 					break;
 				}
