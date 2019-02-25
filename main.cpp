@@ -505,6 +505,10 @@ struct Grid : Component
 
 	uint32_t getCell(uint32_t row, uint32_t column, std::vector<Entity>& entities)
 	{
+		if (row < 0 || column < 0 || row >= matrixSize.y || column >= matrixSize.x)
+		{
+			printf("invalid coordinate! %u x %u\n", row, column);
+		}
 		return (entities[getCellIndex(row, column)].color) >> 8;
 	}
 
@@ -549,11 +553,197 @@ struct Grid : Component
 		}
 	}
 
-	bool isValidCoordinate(Vector2Int a)
+	bool isValidCoordinate(const Vector2Int& a)
 	{
 		return a.x >= 0 && a.y >= 0 && a.x < matrixSize.x && a.y < matrixSize.y;
 	}
 };
+
+	
+enum TS
+{
+	TS_Empty = 0x0,
+	TS_Falling = 0xff9900,
+	TS_Grounded = 0x00cc66
+};
+
+struct TetrisConfiguration
+{
+	std::vector<std::vector<std::vector<uint32_t>>> shapes;
+	Vector2Int boardSize;
+};
+
+TetrisConfiguration getVanillaTetris()
+{
+	TetrisConfiguration configuration;
+	configuration.boardSize = Vector2Int(10, 24);
+	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+	});
+	return configuration;
+}
+
+TetrisConfiguration getPentris()
+{
+	TetrisConfiguration configuration;
+	configuration.boardSize = Vector2Int(13, 24);
+	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Falling, TS_Falling, TS_Empty},
+			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+	});
+	return configuration;
+}
 
 struct PlayTetris : Screen
 {
@@ -568,19 +758,14 @@ struct PlayTetris : Screen
 	uint32_t lines;
 	uint32_t score;
 
-	std::vector<std::vector<std::vector<uint32_t>>> shapes;
+	TetrisConfiguration configuration;
 	std::vector<std::vector<uint32_t>> currentShape;
 	Vector2Int currentOffset;
 	std::uniform_int_distribution<uint32_t> uniformDistribution;
-	
-	enum State
-	{
-		Empty = 0x0,
-		Falling = 0xff9900,
-		Grounded = 0x00cc66
-	};
-	PlayTetris(Vector2 screenSize, uint32_t bgColor)
+
+	PlayTetris(Vector2 screenSize, uint32_t bgColor, TetrisConfiguration configuration)
 	: Screen(screenSize, bgColor)
+	, configuration(configuration)
 	, period(200.0)
 	, lastDrop(0.0)
 	, uniformDistribution(0, 0)
@@ -594,7 +779,7 @@ struct PlayTetris : Screen
 					Vector2(0.5, 0.8),
 					Vector2(0.0, 0.0),
 					Vector2(0.5, 0.5 + 1.0/12.0),
-					Vector2Int(10, 24),
+					Vector2Int(configuration.boardSize.x, configuration.boardSize.y),
 					Vector2(15, 15),
 					2.0f,
 					entities);
@@ -614,51 +799,7 @@ struct PlayTetris : Screen
 								 0xaaaaffff,
 								 entities);
 
-		shapes = std::vector<std::vector<std::vector<uint32_t>>>({
-			{
-				{State::Empty, State::Falling, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Falling, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Empty, State::Empty},
-				{State::Falling, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Falling, State::Falling, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Falling, State::Falling, State::Empty, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Falling, State::Falling, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-			{
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-				{State::Falling, State::Falling, State::Falling, State::Falling},
-				{State::Empty, State::Empty, State::Empty, State::Empty},
-			},
-		});
-		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, shapes.size()-1);
+		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, configuration.shapes.size()-1);
 
 		for (int32_t row = 0; row < 3; ++row)
 		{
@@ -674,8 +815,8 @@ struct PlayTetris : Screen
 	void stampRandomShape()
 	{
 		currentOffset = Vector2Int(grid.matrixSize.x/2-2, 0);
-		auto shape = shapes[uniformDistribution(rng)];
-		//auto shape = shapes[6];
+		auto shape = configuration.shapes[uniformDistribution(rng)];
+		//auto shape = configuration.shapes[6];
 		grid.stamp(shape, currentOffset, entities);
 		currentShape = shape;
 	}
@@ -686,7 +827,7 @@ struct PlayTetris : Screen
 			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = currentState != State::Empty ? State::Grounded : State::Empty;	
+				uint32_t newState = currentState != TS_Empty ? TS_Grounded : TS_Empty;	
 				grid.setCell(row, column, newState, entities);
 			}
 		}
@@ -735,16 +876,16 @@ struct PlayTetris : Screen
 			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
 				uint32_t state = grid.getCell(row, column, entities);
-				isFilled = isFilled && state == State::Grounded;
+				isFilled = isFilled && state == TS_Grounded;
 			}
 			if (isFilled)
 			{
 				rowsCleared += 1;
 				for (int32_t column = 0; column < grid.matrixSize.x; ++column)
 				{
-					grid.setCell(row, column, State::Empty, entities);
+					grid.setCell(row, column, TS_Empty, entities);
 				}
-				moveDown(row, State::Grounded);
+				moveDown(row, TS_Grounded);
 				row += 1;
 			}
 		}
@@ -756,10 +897,10 @@ struct PlayTetris : Screen
 		{
 			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
-				uint32_t aboveState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
+				uint32_t aboveState = row > 0 ? grid.getCell(row-1, column, entities) : TS_Empty;
 				uint32_t currentState = grid.getCell(row, column, entities);
-				if ((aboveState == State::Falling && currentState == State::Grounded)
-					|| (row == grid.matrixSize.y-1 && currentState == State::Falling))
+				if ((aboveState == TS_Falling && currentState == TS_Grounded)
+					|| (row == grid.matrixSize.y-1 && currentState == TS_Falling))
 				{
 					return false;
 				}
@@ -774,9 +915,9 @@ struct PlayTetris : Screen
 			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : State::Empty;
-				if ((newState == State::Falling && currentState == State::Grounded)
-					|| (column == 0 && currentState == State::Falling))
+				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : TS_Empty;
+				if ((newState == TS_Falling && currentState == TS_Grounded)
+					|| (column == 0 && currentState == TS_Falling))
 				{
 					return false;
 				}
@@ -791,9 +932,9 @@ struct PlayTetris : Screen
 			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : State::Empty;
-				if ((newState == State::Falling && currentState == State::Grounded)
-					|| (column == grid.matrixSize.x-1 && currentState == State::Falling))
+				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : TS_Empty;
+				if ((newState == TS_Falling && currentState == TS_Grounded)
+					|| (column == grid.matrixSize.x-1 && currentState == TS_Falling))
 				{
 					return false;
 				}
@@ -801,7 +942,7 @@ struct PlayTetris : Screen
 		}
 		return true;
 	}
-	void moveDown(int32_t fromRow = -1, uint32_t movingState = State::Falling)
+	void moveDown(int32_t fromRow = -1, uint32_t movingState = TS_Falling)
 	{
 		fromRow = fromRow < 0 ? grid.matrixSize.y-1 : fromRow;
 		for (int32_t row = fromRow; row >= 0; --row)
@@ -809,13 +950,13 @@ struct PlayTetris : Screen
 			for(int32_t column = 0; column < grid.matrixSize.x; ++column)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = row > 0 ? grid.getCell(row-1, column, entities) : State::Empty;
+				uint32_t newState = row > 0 ? grid.getCell(row-1, column, entities) : TS_Empty;
 				if (currentState == movingState && newState != movingState)
 				{
-					newState = State::Empty;
+					newState = TS_Empty;
 				}
-				if ((currentState == movingState && newState == State::Empty)
-					|| (currentState == State::Empty && newState == movingState))
+				if ((currentState == movingState && newState == TS_Empty)
+					|| (currentState == TS_Empty && newState == movingState))
 				{
 					grid.setCell(row, column, newState, entities);
 				}
@@ -830,13 +971,13 @@ struct PlayTetris : Screen
 			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : State::Empty;
-				if (currentState == State::Falling && newState == State::Grounded)
+				uint32_t newState = column < grid.matrixSize.x-1 ? grid.getCell(row, column+1, entities) : TS_Empty;
+				if (currentState == TS_Falling && newState == TS_Grounded)
 				{
-					newState = State::Empty;
+					newState = TS_Empty;
 				}
-				if ((currentState == State::Falling && newState == State::Empty)
-					|| (currentState == State::Empty && newState == State::Falling))
+				if ((currentState == TS_Falling && newState == TS_Empty)
+					|| (currentState == TS_Empty && newState == TS_Falling))
 				{
 					grid.setCell(row, column, newState, entities);
 				}
@@ -851,13 +992,13 @@ struct PlayTetris : Screen
 			for (int32_t row = grid.matrixSize.y-1; row >= 0; --row)
 			{
 				uint32_t currentState = grid.getCell(row, column, entities);
-				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : State::Empty;
-				if (currentState == State::Falling && newState == State::Grounded)
+				uint32_t newState = column > 0 ? grid.getCell(row, column-1, entities) : TS_Empty;
+				if (currentState == TS_Falling && newState == TS_Grounded)
 				{
-					newState = State::Empty;
+					newState = TS_Empty;
 				}
-				if ((currentState == State::Falling && newState == State::Empty)
-					|| (currentState == State::Empty && newState == State::Falling))
+				if ((currentState == TS_Falling && newState == TS_Empty)
+					|| (currentState == TS_Empty && newState == TS_Falling))
 				{
 					grid.setCell(row, column, newState, entities);
 				}
@@ -876,7 +1017,7 @@ struct PlayTetris : Screen
 			return;
 		}
 		uint32_t state = grid.getCell(coord.y, coord.x, entities);
-		if (state == State::Grounded || newState == State::Grounded)
+		if (state == TS_Grounded || newState == TS_Grounded)
 		{
 			return;
 		}
@@ -884,20 +1025,21 @@ struct PlayTetris : Screen
 	}
 	void rotate()
 	{
+		uint32_t shapeWidth = configuration.shapes[0].size();
 		Vector2Int co = currentOffset;
-		for(int32_t x = 0; x < 2; ++x)
+		for(int32_t x = 0; x < shapeWidth/2; ++x)
 		{
-			for (int32_t y = x; y < 4-x-1; ++y)
+			for (int32_t y = x; y < shapeWidth-x-1; ++y)
 			{
 				Vector2Int coord1(co.x + x, co.y + y);
-				Vector2Int coord2(co.x + y, co.y + 4 - 1 - x);
-				Vector2Int coord3(co.x + 4 - 1 - x, co.y + 4 - 1 - y);
-				Vector2Int coord4(co.x + 4 - 1 - y, co.y + x);
+				Vector2Int coord2(co.x + y, co.y + shapeWidth - 1 - x);
+				Vector2Int coord3(co.x + shapeWidth - 1 - x, co.y + shapeWidth - 1 - y);
+				Vector2Int coord4(co.x + shapeWidth - 1 - y, co.y + x);
 
-				int64_t state1 = grid.isValidCoordinate(coord1) ?  grid.getCell(coord1.y, coord1.x, entities) : -1;
-				int64_t state2 = grid.isValidCoordinate(coord2) ?  grid.getCell(coord2.y, coord2.x, entities) : -1;
-				int64_t state3 = grid.isValidCoordinate(coord3) ?  grid.getCell(coord3.y, coord3.x, entities) : -1;
-				int64_t state4 = grid.isValidCoordinate(coord4) ?  grid.getCell(coord4.y, coord4.x, entities) : -1;
+				int64_t state1 = grid.isValidCoordinate(coord1) ?  grid.getCell(coord1.y, coord1.x, entities) : TS_Empty;
+				int64_t state2 = grid.isValidCoordinate(coord2) ?  grid.getCell(coord2.y, coord2.x, entities) : TS_Empty;
+				int64_t state3 = grid.isValidCoordinate(coord3) ?  grid.getCell(coord3.y, coord3.x, entities) : TS_Empty;
+				int64_t state4 = grid.isValidCoordinate(coord4) ?  grid.getCell(coord4.y, coord4.x, entities) : TS_Empty;
 
 				setCellAux(coord1, state2);
 				setCellAux(coord2, state3);
@@ -910,32 +1052,37 @@ struct PlayTetris : Screen
 	{
 		bool aInBounds = grid.isValidCoordinate(a);
 		bool bInBounds = grid.isValidCoordinate(b);
+		if (!aInBounds && !bInBounds)
+		{
+			return true;
+		}
 		if (aInBounds && !bInBounds)
 		{
 			uint32_t stateA = grid.getCell(a.y, a.x, entities);
-			return stateA != State::Falling;
+			return stateA != TS_Falling;
 		}
 		if (bInBounds && !aInBounds)
 		{
 			uint32_t stateB = grid.getCell(b.y, b.x, entities);
-			return stateB != State::Falling;
+			return stateB != TS_Falling;
 		}
 		uint32_t stateA = grid.getCell(a.y, a.x, entities);
 		uint32_t stateB = grid.getCell(b.y, b.x, entities);
-		return !((stateA == State::Falling && stateB == State::Grounded)
-				|| (stateB == State::Falling && stateA == State::Grounded));
+		return !((stateA == TS_Falling && stateB == TS_Grounded)
+				|| (stateB == TS_Falling && stateA == TS_Grounded));
 	}
 	bool canRotate()
 	{
+		uint32_t shapeWidth = configuration.shapes[0].size();
 		Vector2Int co = currentOffset;
-		for(int32_t x = 0; x < 2; ++x)
+		for(int32_t x = 0; x < shapeWidth; ++x)
 		{
-			for (int32_t y = x; y < 4-x-1; ++y)
+			for (int32_t y = x; y < shapeWidth-x-1; ++y)
 			{
 				Vector2Int coord1(co.x + x, co.y + y);
-				Vector2Int coord2(co.x + y, co.y + 4 - 1 - x);
-				Vector2Int coord3(co.x + 4 - 1 - x, co.y + 4 - 1);
-				Vector2Int coord4(co.x + 4 - 1 - y, co.y + x);
+				Vector2Int coord2(co.x + y, co.y + shapeWidth - 1 - x);
+				Vector2Int coord3(co.x + shapeWidth - 1 - x, co.y + shapeWidth - 1);
+				Vector2Int coord4(co.x + shapeWidth - 1 - y, co.y + x);
 
 				bool isFree = canSwap(coord1, coord2)
 					&& canSwap(coord2, coord3)
@@ -951,7 +1098,8 @@ struct PlayTetris : Screen
 	}
 	void loop(double currentTime, const std::vector<bool>& keyStates) override
 	{
-		if (currentTime - lastDrop > period)
+		float effectivePeriod = keyStates[SDLK_DOWN] ? period / 10.0 : period;
+		if (currentTime - lastDrop > effectivePeriod)
 		{
 			if (!canMoveDown())
 			{
@@ -991,7 +1139,6 @@ struct PlayTetris : Screen
 	{
 		switch (key)
 		{
-			case SDLK_DOWN:
 			case SDLK_SPACE:
 			{
 				while (canMoveDown())
@@ -1070,7 +1217,7 @@ int main()
 	printf("%4.2f x %4.2f\n", windowWidth, windowHeight);
 	Vector2 screenSize(windowWidth, windowHeight);
 	Game game(screenSize, 0xffffffff);
-	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff);
+	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff, getPentris());
 	game.setScreen(playTetris);
 	playTetris->onLayout(Vector2(), screenSize);
 
