@@ -517,7 +517,6 @@ struct Grid : Component
 					maxX = i > maxX ? i : maxX;
 					minY = j < minY ? j : minY;
 					maxY = j > maxY ? j : maxY;
-					printf("Box constriction: %d x %d - %d x %d\n", minX, minY, maxX, maxY);
 				}
 			}
 		}
@@ -528,15 +527,10 @@ struct Grid : Component
 		{
 			int32_t delta = height - width;
 			int32_t offByOne = delta % 2;
-			printf("Deltas: %d, %d\n", delta/2, delta/2 + offByOne);
-			printf("minX %d, maxX %d\n", minX, maxX);
 			bool onRightSide = minX + width/2 > matrixSize.x/2;
-			printf("onRightSide: %s - %d vs %d\n", onRightSide ? "YES" : "NO", (minX + width)/2, matrixSize.x/2);
 			minX -= delta/2 + (onRightSide ? offByOne : 0);
 			maxX += delta/2 + (onRightSide ? 0 : offByOne);
 			width = maxX - minX;
-			printf("minX %d, maxX %d\n", minX, maxX);
-			printf("widening by %d, offByOne %d, new height %d\n", delta, offByOne, width);
 			if (maxX >= matrixSize.x)
 			{
 				int32_t temp = maxX - matrixSize.x + 1;
@@ -711,89 +705,9 @@ std::vector<std::vector<std::vector<uint32_t>>> getTetrominoes()
 	});
 }
 
-TetrisConfiguration getVanillaTetris()
+std::vector<std::vector<std::vector<uint32_t>>> getPentominoes()
 {
-	TetrisConfiguration configuration;
-	configuration.mode = TetrisConfiguration::Regular;
-	configuration.boardSize = Vector2Int(10, 24);
-	configuration.activeColumnSpan = Vector2Int(0, 9);
-	configuration.shapes = getTetrominoes();
-	return configuration;
-}
-
-TetrisConfiguration getSirTet()
-{
-	TetrisConfiguration configuration;
-	configuration.mode = TetrisConfiguration::RotatingGround;
-	configuration.boardSize = Vector2Int(20, 24);
-	configuration.activeColumnSpan = Vector2Int(5, 14);
-	configuration.shapes = getTetrominoes();
-	return configuration;
-}
-
-TetrisConfiguration getTttetris()
-{
-	TetrisConfiguration configuration;
-	configuration.mode = TetrisConfiguration::Regular;
-	configuration.boardSize = Vector2Int(15, 24);
-	configuration.activeColumnSpan = Vector2Int(0, 9);
-	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Falling},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Falling, TS_Falling},
-			{TS_Falling, TS_Falling, TS_Falling},
-		},
-		{
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
-		},
-	});
-	return configuration;
-}
-
-TetrisConfiguration getPentris()
-{
-	TetrisConfiguration configuration;
-	configuration.mode = TetrisConfiguration::Regular;
-	configuration.boardSize = Vector2Int(13, 24);
-	configuration.activeColumnSpan = Vector2Int(0, 9);
-	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+	return std::vector<std::vector<std::vector<uint32_t>>>({
 		{
 			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
 			{TS_Empty, TS_Falling, TS_Empty, TS_Empty, TS_Empty},
@@ -907,6 +821,123 @@ TetrisConfiguration getPentris()
 			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
 		},
 	});
+}
+
+TetrisConfiguration getVanillaTetris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.boardSize = Vector2Int(10, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 9);
+	configuration.shapes = getTetrominoes();
+	return configuration;
+}
+
+TetrisConfiguration getSirTet()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::RotatingGround;
+	configuration.boardSize = Vector2Int(20, 24);
+	configuration.activeColumnSpan = Vector2Int(5, 14);
+	configuration.shapes = getTetrominoes();
+	return configuration;
+}
+
+TetrisConfiguration getTttetris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.boardSize = Vector2Int(15, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 9);
+	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Falling},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling},
+			{TS_Falling, TS_Falling, TS_Falling},
+		},
+		{
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+			{TS_Empty, TS_Empty, TS_Empty, TS_Empty, TS_Empty},
+		},
+	});
+	return configuration;
+}
+
+TetrisConfiguration getPentris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.boardSize = Vector2Int(13, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 9);
+	configuration.shapes = getPentominoes();
+	return configuration;
+}
+
+TetrisConfiguration getAllminos()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Regular;
+	configuration.boardSize = Vector2Int(12, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 11);
+
+	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
+		{
+			{TS_Empty, TS_Empty, TS_Empty},
+			{TS_Falling, TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty, TS_Empty},
+		},
+		{
+			{TS_Falling, TS_Empty},
+			{TS_Falling, TS_Falling},
+		},
+		{
+			{TS_Falling, TS_Falling},
+			{TS_Empty, TS_Empty},
+		},
+	});
+
+	auto tetrominoes = getTetrominoes();
+	auto pentominoes = getPentominoes();
+
+	configuration.shapes.insert(configuration.shapes.end(), tetrominoes.begin(), tetrominoes.end());
+	configuration.shapes.insert(configuration.shapes.end(), pentominoes.begin(), pentominoes.end());
+
 	return configuration;
 }
 
@@ -1040,7 +1071,7 @@ struct PlayTetris : Screen
 			score += 1500;
 		}
 
-		period = 600.0/(float)level;
+		period = 700.0/(1.0 + 2.0/3.0*((float)level-1.0));
 
 		textList.setTextForIndex(level, 1, entities);
 		textList.setTextForIndex(lines, 3, entities);
@@ -1419,6 +1450,47 @@ struct PlayTetris : Screen
 		pauseButton.onLayout(parentPosition, parentSize, entities);
 		grid.onLayout(parentPosition, parentSize, entities);
 		textList.onLayout(grid.screenPosition, grid.screenSize, entities);
+	}
+};
+
+struct StateManager : Screen
+{
+	enum GameState
+	{
+		Running,
+		Paused,
+	};
+	Screen& screen;
+	StateManager(Vector2 screenSize, uint32_t bgColor, Screen& screen)
+	: Screen(screenSize, bgColor)
+	, screen(screen)
+	{
+
+	}
+
+	void loop(double currentTime, const std::vector<bool>& keyStates) override
+	{
+		screen.loop(currentTime, keyStates);
+	}
+	void onKeyUp(SDL_Keycode key) override
+	{
+		screen.onKeyUp(key);
+	}
+	void onKeyDown(SDL_Keycode key) override
+	{
+		screen.onKeyDown(key);
+	}
+	void onMouseButton1Down(const Vector2 position) override
+	{
+		screen.onMouseButton1Up(position);
+	}
+	void onMouseButton1Up(const Vector2 position) override
+	{
+		screen.onMouseButton1Up(position);
+	}
+	void onLayout(const Vector2& parentPosition, const Vector2& parentSize) override
+	{
+		screen.onLayout(parentPosition, parentSize);
 	}
 };
 
