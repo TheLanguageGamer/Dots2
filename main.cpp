@@ -71,19 +71,19 @@ struct Entity
 {
 	Vector2 position;
 	Vector2 size;
-	uint32_t color;
+	uint32_t rgba;
 	uint32_t id;
 	Type type;
-	Entity(Type type, Vector2 position, Vector2 size, uint32_t color)
+	Entity(Type type, Vector2 position, Vector2 size, uint32_t rgba)
 	: type(type)
 	, position(position)
 	, size(size)
-	, color(color) {}
-	Entity(Type type, Vector2 position, Vector2 size, uint32_t color, uint32_t id)
+	, rgba(rgba) {}
+	Entity(Type type, Vector2 position, Vector2 size, uint32_t rgba, uint32_t id)
 	: type(type)
 	, position(position)
 	, size(size)
-	, color(color)
+	, rgba(rgba)
 	, id(id) {}
 
 	void shift(const Vector2& delta)
@@ -127,13 +127,14 @@ static Entity createText(const std::string& text, float x, float y, float fontSi
 
 struct Screen
 {
-	std::vector<Entity> entities;
+	std::vector<Entity>& entities;
 	Vector2 screenSize;
 	uint32_t bgColor;
-	Screen(Vector2 screenSize, uint32_t bgColor)
+	Screen(Vector2 screenSize, uint32_t bgColor, std::vector<Entity>& entities)
 	: screenSize(screenSize)
-	, bgColor(bgColor) {}
-	Screen() {}
+	, bgColor(bgColor)
+	, entities(entities) {}
+	//Screen() {}
 	virtual void loop(double currentTime, const std::vector<bool>& keyStates) {}
 	virtual void onKeyUp(SDL_Keycode key) {}
 	virtual void onKeyDown(SDL_Keycode key) {}
@@ -172,7 +173,7 @@ struct Game
 						entity.position.y + entity.size.y/2.0,
 						entity.size.x/2.0,
 						entity.size.y/2.0,
-						entity.color);
+						entity.rgba);
 					break;
 				}
 				case Type::Rectangle:
@@ -182,7 +183,7 @@ struct Game
 						entity.position.y,
 						entity.position.x + entity.size.x,
 						entity.position.y + entity.size.y,
-						entity.color);
+						entity.rgba);
 					break;
 				}
 				case Type::Text:
@@ -192,7 +193,7 @@ struct Game
 						text.c_str(),
 						entity.position.x,
 						entity.position.y,
-						entity.color);
+						entity.rgba);
 					break;
 				}
 			}
@@ -409,7 +410,7 @@ struct TextButton : Component
 		}
 	}
 
-	void onMouseButton1Up(const Vector2& mousePosition, std::vector<Entity>& entities)
+	bool onMouseButton1Up(const Vector2& mousePosition, std::vector<Entity>& entities)
 	{
 		if (isDown)
 		{
@@ -423,8 +424,10 @@ struct TextButton : Component
 									   screenSize))
 			{
 				printf("TextButton activation\n");
+				return true;
 			}
 		}
+		return false;
 	}
 };
 
@@ -576,42 +579,42 @@ struct Grid : Component
 		{
 			printf("invalid coordinate! %u x %u\n", row, column);
 		}
-		return (entities[getCellIndex(row, column)].color) >> 8;
+		return (entities[getCellIndex(row, column)].rgba) >> 8;
 	}
 
 	uint32_t getCellVisibility(uint32_t row, uint32_t column, std::vector<Entity>& entities)
 	{
-		uint32_t color = entities[getCellBackgroundIndex(row, column)].color;
+		uint32_t color = entities[getCellBackgroundIndex(row, column)].rgba;
 		return color & 0xff;
 	}
 
 	void setCellVisibility(uint32_t row, uint32_t column, uint32_t visibility, std::vector<Entity>& entities)
 	{
-		uint32_t bgColor = entities[getCellBackgroundIndex(row, column)].color;
-		uint32_t cellColor = entities[getCellIndex(row, column)].color;
+		uint32_t bgColor = entities[getCellBackgroundIndex(row, column)].rgba;
+		uint32_t cellColor = entities[getCellIndex(row, column)].rgba;
 		uint32_t newBgColor = (bgColor & 0xffffff00) | visibility;
 		uint32_t newCellColor = (cellColor & 0xffffff00) | visibility;
-		entities[getCellBackgroundIndex(row, column)].color = newBgColor;
-		entities[getCellIndex(row, column)].color = newCellColor;
+		entities[getCellBackgroundIndex(row, column)].rgba = newBgColor;
+		entities[getCellIndex(row, column)].rgba = newCellColor;
 	}
 
 	void setCell(uint32_t row, uint32_t column, uint32_t state, std::vector<Entity>& entities)
 	{
-		uint32_t color = entities[getCellIndex(row, column)].color;
+		uint32_t color = entities[getCellIndex(row, column)].rgba;
 		uint32_t visibility = color & 0xff;
 		uint32_t newVisibility = state > 0 ? getCellVisibility(row, column, entities) : 0x0;
 		uint32_t newColor = (state << 8) | newVisibility;
-		entities[getCellIndex(row, column)].color = newColor;
+		entities[getCellIndex(row, column)].rgba = newColor;
 		//printf("Cell set to: %u\n", newColor);
 	}
 
-	void setCellBackground(uint32_t row, uint32_t column, uint32_t state, std::vector<Entity>& entities)
+	void setCellBackground(uint32_t row, uint32_t column, uint32_t newColor, std::vector<Entity>& entities)
 	{
-		uint32_t color = entities[getCellBackgroundIndex(row, column)].color;
-		uint32_t visibility = color & 0xff;
+		uint32_t rgba = entities[getCellBackgroundIndex(row, column)].rgba;
+		uint32_t visibility = rgba & 0xff;
 		uint32_t newVisibility = getCellVisibility(row, column, entities);
-		uint32_t newColor = (state << 8) | newVisibility;
-		entities[getCellBackgroundIndex(row, column)].color = newColor;
+		uint32_t newRgba = (newColor << 8) | newVisibility;
+		entities[getCellBackgroundIndex(row, column)].rgba = newRgba;
 		//printf("Cell set to: %u\n", newColor);
 	}
 
@@ -947,7 +950,6 @@ struct PlayTetris : Screen
 	double lastDrop;
 	Grid grid;
 
-	TextButton pauseButton;
 	TextList textList;
 
 	uint32_t level;
@@ -960,8 +962,11 @@ struct PlayTetris : Screen
 	Vector2Int activeColumnSpan;
 	std::uniform_int_distribution<uint32_t> uniformDistribution;
 
-	PlayTetris(Vector2 screenSize, uint32_t bgColor, TetrisConfiguration configuration)
-	: Screen(screenSize, bgColor)
+	PlayTetris(Vector2 screenSize,
+		uint32_t bgColor,
+		std::vector<Entity>& entities,
+		TetrisConfiguration configuration)
+	: Screen(screenSize, bgColor, entities)
 	, configuration(configuration)
 	, activeColumnSpan(configuration.activeColumnSpan)
 	, period(200.0)
@@ -988,14 +993,6 @@ struct PlayTetris : Screen
 							30.0,
 							{ "LEVEL", "1", "LINES", "0", "SCORE", "0" },
 							entities);
-
-		pauseButton = TextButton("PAUSE",
-								 Vector2(1.0,  0.0),
-								 Vector2(-10.0, 10.0),
-								 Vector2(1.0, 0.0),
-								 30,
-								 0xaaaaffff,
-								 entities);
 
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, configuration.shapes.size()-1);
 
@@ -1367,16 +1364,6 @@ struct PlayTetris : Screen
 		}
 	}
 
-	void onMouseButton1Down(const Vector2 position) override
-	{
-		pauseButton.onMouseButton1Down(position, entities);
-	}
-
-	void onMouseButton1Up(const Vector2 position) override
-	{
-		pauseButton.onMouseButton1Up(position, entities);
-	}
-
 	void onKeyDown(SDL_Keycode key) override
 	{
 		uint32_t activeState = configuration.mode == TetrisConfiguration::RotatingGround ? TS_Grounded : TS_Falling;
@@ -1447,7 +1434,6 @@ struct PlayTetris : Screen
 	void onLayout(const Vector2& parentPosition,
 				  const Vector2& parentSize) override
 	{
-		pauseButton.onLayout(parentPosition, parentSize, entities);
 		grid.onLayout(parentPosition, parentSize, entities);
 		textList.onLayout(grid.screenPosition, grid.screenSize, entities);
 	}
@@ -1460,37 +1446,98 @@ struct StateManager : Screen
 		Running,
 		Paused,
 	};
-	Screen& screen;
-	StateManager(Vector2 screenSize, uint32_t bgColor, Screen& screen)
-	: Screen(screenSize, bgColor)
+	GameState gameState;
+	TextButton pauseButton;
+	TextButton resumeButton;
+	uint32_t pauseCoverIndex;
+	Screen* screen;
+	StateManager(Vector2 screenSize,
+		uint32_t bgColor,
+		std::vector<Entity>& entities,
+		Screen* screen)
+	: Screen(screenSize, bgColor, entities)
 	, screen(screen)
+	, gameState(Running)
 	{
+		pauseButton = TextButton("PAUSE",
+								 Vector2(1.0,  0.0),
+								 Vector2(-10.0, 10.0),
+								 Vector2(1.0, 0.0),
+								 30,
+								 0xaaaaffff,
+								 entities);
 
+		pauseCoverIndex = entities.size();
+		entities.push_back(createRectangle(Vector2(0, -screenSize.y), screenSize, 0xffffff66));
+
+		resumeButton = TextButton("RESUME",
+								 Vector2(0.5,  0.5),
+								 Vector2(0.0, -screenSize.y),
+								 Vector2(0.5, 0.5),
+								 30,
+								 0xaaaaffff,
+								 entities);
 	}
 
 	void loop(double currentTime, const std::vector<bool>& keyStates) override
 	{
-		screen.loop(currentTime, keyStates);
+		if (gameState == GameState::Running)
+		{
+			screen->loop(currentTime, keyStates);
+		}
 	}
 	void onKeyUp(SDL_Keycode key) override
 	{
-		screen.onKeyUp(key);
+		if (gameState == GameState::Running)
+		{
+			screen->onKeyUp(key);
+		}
 	}
 	void onKeyDown(SDL_Keycode key) override
 	{
-		screen.onKeyDown(key);
+		if (gameState == GameState::Running)
+		{
+			screen->onKeyDown(key);
+		}
 	}
 	void onMouseButton1Down(const Vector2 position) override
 	{
-		screen.onMouseButton1Up(position);
+		screen->onMouseButton1Down(position);
+		if (gameState == GameState::Running)
+		{
+			pauseButton.onMouseButton1Down(position, entities);
+		}
+		else
+		{
+			resumeButton.onMouseButton1Down(position, entities);
+		}
 	}
 	void onMouseButton1Up(const Vector2 position) override
 	{
-		screen.onMouseButton1Up(position);
+		screen->onMouseButton1Up(position);
+		if (pauseButton.onMouseButton1Up(position, entities))
+		{
+			printf("Paused!\n");
+			gameState = GameState::Paused;
+			entities[pauseCoverIndex].position = Vector2();
+			resumeButton.offsetPosition = Vector2();
+			resumeButton.onLayout(Vector2(), screenSize, entities);
+		}
+		else if (resumeButton.onMouseButton1Up(position, entities))
+		{
+			printf("Resumed!\n");
+			gameState = GameState::Running;
+			entities[pauseCoverIndex].position = Vector2(0, -screenSize.y);
+			resumeButton.offsetPosition = Vector2(0, -screenSize.y);
+			resumeButton.onLayout(Vector2(), screenSize, entities);
+		}
 	}
 	void onLayout(const Vector2& parentPosition, const Vector2& parentSize) override
 	{
-		screen.onLayout(parentPosition, parentSize);
+		screenSize = parentSize;
+		pauseButton.onLayout(parentPosition, parentSize, entities);
+		resumeButton.onLayout(parentPosition, parentSize, entities);
+		screen->onLayout(parentPosition, parentSize);
 	}
 };
 
@@ -1522,9 +1569,11 @@ int main()
 	printf("%4.2f x %4.2f\n", windowWidth, windowHeight);
 	Vector2 screenSize(windowWidth, windowHeight);
 	Game game(screenSize, 0xffffffff);
-	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff, getSirTet());
-	game.setScreen(playTetris);
-	playTetris->onLayout(Vector2(), screenSize);
+	std::vector<Entity> entities;
+	PlayTetris* playTetris = new PlayTetris(screenSize, 0xffffffff, entities, getSirTet());
+	StateManager* stateManager = new StateManager(screenSize, 0xffffffff, entities, playTetris);
+	game.setScreen(stateManager);
+	stateManager->onLayout(Vector2(), screenSize);
 
 	SDL_Init(SDL_INIT_VIDEO);
 
