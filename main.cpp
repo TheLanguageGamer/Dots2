@@ -1015,6 +1015,16 @@ struct PlayTetris : Screen
 		setBackground();
 		stampRandomShape();
 		updatePrograss(0);
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{			
+			while (canMoveDown())
+			{
+				moveDown();
+			}
+			ground();
+			stampRandomShape();
+		}
 	}
 	void reset() override
 	{
