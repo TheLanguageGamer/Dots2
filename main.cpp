@@ -127,6 +127,13 @@ static Entity createText(const std::string& text, float x, float y, float fontSi
 
 struct Screen
 {
+	enum GameState
+	{
+		Running,
+		Paused,
+		Dead,
+	};
+
 	std::vector<Entity>& entities;
 	Vector2 screenSize;
 	uint32_t bgColor;
@@ -135,12 +142,13 @@ struct Screen
 	, bgColor(bgColor)
 	, entities(entities) {}
 	//Screen() {}
-	virtual void loop(double currentTime, const std::vector<bool>& keyStates) {}
+	virtual bool loop(double currentTime, const std::vector<bool>& keyStates) { return false; }
 	virtual void onKeyUp(SDL_Keycode key) {}
 	virtual void onKeyDown(SDL_Keycode key) {}
 	virtual void onMouseButton1Down(const Vector2 position) {}
 	virtual void onMouseButton1Up(const Vector2 position) {}
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize) {}
+	virtual void reset() {}
 };
 
 struct Game
@@ -996,17 +1004,31 @@ struct PlayTetris : Screen
 
 		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, configuration.shapes.size()-1);
 
-		for (int32_t row = 0; row < 3; ++row)
-		{
-			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
-			{
-				grid.setCellVisibility(row, column, 0x0, entities);
-			}
-		}
+		// for (int32_t row = 0; row < 3; ++row)
+		// {
+		// 	for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+		// 	{
+		// 		grid.setCellVisibility(row, column, 0x0, entities);
+		// 	}
+		// }
 
 		setBackground();
 		stampRandomShape();
 		updatePrograss(0);
+	}
+	void reset() override
+	{
+		lines = 0;
+		score = 0;
+		updatePrograss(0);
+		for (int32_t row = 0; row < grid.matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				grid.setCell(row, column, TS_Empty, entities);
+			}
+		}
+		stampRandomShape();
 	}
 	void setBackground()
 	{
@@ -1073,6 +1095,21 @@ struct PlayTetris : Screen
 		textList.setTextForIndex(level, 1, entities);
 		textList.setTextForIndex(lines, 3, entities);
 		textList.setTextForIndex(score, 5, entities);
+	}
+	bool isDead()
+	{
+		for (int32_t row = 0; row < 4; ++ row)
+		{
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t state = grid.getCell(row, column, entities);
+				if (state == TS_Grounded)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 	void clearRows()
 	{
@@ -1332,8 +1369,9 @@ struct PlayTetris : Screen
 		}
 		return true;
 	}
-	void loop(double currentTime, const std::vector<bool>& keyStates) override
+	bool loop(double currentTime, const std::vector<bool>& keyStates) override
 	{
+		bool dead = false;
 		uint32_t activeState = configuration.mode == TetrisConfiguration::RotatingGround ? TS_Grounded : TS_Falling;
 		float effectivePeriod = keyStates[SDLK_DOWN] ? period / 10.0 : period;
 		if (currentTime - lastDrop > effectivePeriod)
@@ -1342,6 +1380,7 @@ struct PlayTetris : Screen
 			{
 				ground();
 				clearRows();
+				dead = isDead();
 				stampRandomShape();
 			}
 			else
@@ -1362,6 +1401,7 @@ struct PlayTetris : Screen
 			}
 			lastDrop = currentTime;
 		}
+		return dead;
 	}
 
 	void onKeyDown(SDL_Keycode key) override
@@ -1441,15 +1481,14 @@ struct PlayTetris : Screen
 
 struct StateManager : Screen
 {
-	enum GameState
-	{
-		Running,
-		Paused,
-	};
 	GameState gameState;
+
 	TextButton pauseButton;
 	TextButton resumeButton;
-	uint32_t pauseCoverIndex;
+	TextButton againButton;
+
+	uint32_t coverIndex;
+	
 	Screen* screen;
 	StateManager(Vector2 screenSize,
 		uint32_t bgColor,
@@ -1467,7 +1506,7 @@ struct StateManager : Screen
 								 0xaaaaffff,
 								 entities);
 
-		pauseCoverIndex = entities.size();
+		coverIndex = entities.size();
 		entities.push_back(createRectangle(Vector2(0, -screenSize.y), screenSize, 0xffffff66));
 
 		resumeButton = TextButton("RESUME",
@@ -1477,14 +1516,32 @@ struct StateManager : Screen
 								 30,
 								 0xaaaaffff,
 								 entities);
+
+		againButton = TextButton("AGAIN",
+								 Vector2(0.5,  0.5),
+								 Vector2(0.0, -screenSize.y),
+								 Vector2(0.5, 0.5),
+								 30,
+								 0xaaaaffff,
+								 entities);
 	}
 
-	void loop(double currentTime, const std::vector<bool>& keyStates) override
+	bool loop(double currentTime, const std::vector<bool>& keyStates) override
 	{
 		if (gameState == GameState::Running)
 		{
-			screen->loop(currentTime, keyStates);
+			bool dead = screen->loop(currentTime, keyStates);
+			if (dead)
+			{
+				printf("Dead!\n");
+				gameState = GameState::Dead;
+				entities[coverIndex].position = Vector2();
+				againButton.offsetPosition = Vector2();
+				againButton.onLayout(Vector2(), screenSize, entities);
+			}
 		}
+
+		return false;
 	}
 	void onKeyUp(SDL_Keycode key) override
 	{
@@ -1507,9 +1564,13 @@ struct StateManager : Screen
 		{
 			pauseButton.onMouseButton1Down(position, entities);
 		}
-		else
+		else if (gameState == GameState::Paused)
 		{
 			resumeButton.onMouseButton1Down(position, entities);
+		}
+		else if (gameState == GameState::Dead)
+		{
+			againButton.onMouseButton1Down(position, entities);
 		}
 	}
 	void onMouseButton1Up(const Vector2 position) override
@@ -1519,7 +1580,7 @@ struct StateManager : Screen
 		{
 			printf("Paused!\n");
 			gameState = GameState::Paused;
-			entities[pauseCoverIndex].position = Vector2();
+			entities[coverIndex].position = Vector2();
 			resumeButton.offsetPosition = Vector2();
 			resumeButton.onLayout(Vector2(), screenSize, entities);
 		}
@@ -1527,9 +1588,18 @@ struct StateManager : Screen
 		{
 			printf("Resumed!\n");
 			gameState = GameState::Running;
-			entities[pauseCoverIndex].position = Vector2(0, -screenSize.y);
+			entities[coverIndex].position = Vector2(0, -screenSize.y);
 			resumeButton.offsetPosition = Vector2(0, -screenSize.y);
 			resumeButton.onLayout(Vector2(), screenSize, entities);
+		}
+		else if (againButton.onMouseButton1Up(position, entities))
+		{
+			printf("Again!\n");
+			gameState = GameState::Running;
+			entities[coverIndex].position = Vector2(0, -screenSize.y);
+			againButton.offsetPosition = Vector2(0, -screenSize.y);
+			againButton.onLayout(Vector2(), screenSize, entities);
+			screen->reset();
 		}
 	}
 	void onLayout(const Vector2& parentPosition, const Vector2& parentSize) override
@@ -1537,6 +1607,7 @@ struct StateManager : Screen
 		screenSize = parentSize;
 		pauseButton.onLayout(parentPosition, parentSize, entities);
 		resumeButton.onLayout(parentPosition, parentSize, entities);
+		againButton.onLayout(parentPosition, parentSize, entities);
 		screen->onLayout(parentPosition, parentSize);
 	}
 };
