@@ -147,6 +147,7 @@ struct Screen
 	virtual void onKeyDown(SDL_Keycode key) {}
 	virtual void onMouseButton1Down(const Vector2 position) {}
 	virtual void onMouseButton1Up(const Vector2 position) {}
+	virtual void onFocusLost() {}
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize) {}
 	virtual void reset() {}
 };
@@ -237,6 +238,11 @@ struct Game
 	void onMouseButton1Up(const Vector2 position)
 	{
 		screen->onMouseButton1Up(position);
+	}
+
+	void onFocusLost()
+	{
+		screen->onFocusLost();
 	}
 };
 
@@ -596,6 +602,12 @@ struct Grid : Component
 		return color & 0xff;
 	}
 
+	uint32_t getForegroundVisibility(uint32_t row, uint32_t column, std::vector<Entity>& entities)
+	{
+		uint32_t color = entities[getCellIndex(row, column)].rgba;
+		return color & 0xff;
+	}
+
 	void setCellVisibility(uint32_t row, uint32_t column, uint32_t visibility, std::vector<Entity>& entities)
 	{
 		uint32_t bgColor = entities[getCellBackgroundIndex(row, column)].rgba;
@@ -603,6 +615,13 @@ struct Grid : Component
 		uint32_t newBgColor = (bgColor & 0xffffff00) | visibility;
 		uint32_t newCellColor = (cellColor & 0xffffff00) | visibility;
 		entities[getCellBackgroundIndex(row, column)].rgba = newBgColor;
+		entities[getCellIndex(row, column)].rgba = newCellColor;
+	}
+
+	void setForegroundVisibility(uint32_t row, uint32_t column, uint32_t visibility, std::vector<Entity>& entities)
+	{
+		uint32_t cellColor = entities[getCellIndex(row, column)].rgba;
+		uint32_t newCellColor = (cellColor & 0xffffff00) | visibility;
 		entities[getCellIndex(row, column)].rgba = newCellColor;
 	}
 
@@ -660,12 +679,14 @@ struct TetrisConfiguration
 	enum Mode
 	{
 		Regular = 0,
-		RotatingGround
+		RotatingGround,
+		Invisible,
 	};
 	std::vector<std::vector<std::vector<uint32_t>>> shapes;
 	Vector2Int boardSize;
 	Vector2Int activeColumnSpan;
 	Mode mode;
+	bool visible;
 };
 
 std::vector<std::vector<std::vector<uint32_t>>> getTetrominoes()
@@ -841,6 +862,18 @@ TetrisConfiguration getVanillaTetris()
 	configuration.boardSize = Vector2Int(10, 24);
 	configuration.activeColumnSpan = Vector2Int(0, 9);
 	configuration.shapes = getTetrominoes();
+	configuration.visible = false;
+	return configuration;
+}
+
+TetrisConfiguration getInvisibleTetris()
+{
+	TetrisConfiguration configuration;
+	configuration.mode = TetrisConfiguration::Invisible;
+	configuration.boardSize = Vector2Int(10, 24);
+	configuration.activeColumnSpan = Vector2Int(0, 9);
+	configuration.shapes = getTetrominoes();
+	configuration.visible = false;
 	return configuration;
 }
 
@@ -848,6 +881,7 @@ TetrisConfiguration getSirTet()
 {
 	TetrisConfiguration configuration;
 	configuration.mode = TetrisConfiguration::RotatingGround;
+	configuration.visible = false;
 	configuration.boardSize = Vector2Int(20, 24);
 	configuration.activeColumnSpan = Vector2Int(5, 14);
 	configuration.shapes = getTetrominoes();
@@ -858,6 +892,7 @@ TetrisConfiguration getTttetris()
 {
 	TetrisConfiguration configuration;
 	configuration.mode = TetrisConfiguration::Regular;
+	configuration.visible = false;
 	configuration.boardSize = Vector2Int(15, 24);
 	configuration.activeColumnSpan = Vector2Int(0, 9);
 	configuration.shapes = std::vector<std::vector<std::vector<uint32_t>>>({
@@ -914,6 +949,7 @@ TetrisConfiguration getPentris()
 {
 	TetrisConfiguration configuration;
 	configuration.mode = TetrisConfiguration::Regular;
+	configuration.visible = false;
 	configuration.boardSize = Vector2Int(13, 24);
 	configuration.activeColumnSpan = Vector2Int(0, 9);
 	configuration.shapes = getPentominoes();
@@ -924,6 +960,7 @@ TetrisConfiguration getAllminos()
 {
 	TetrisConfiguration configuration;
 	configuration.mode = TetrisConfiguration::Regular;
+	configuration.visible = false;
 	configuration.boardSize = Vector2Int(12, 24);
 	configuration.activeColumnSpan = Vector2Int(0, 11);
 
@@ -968,7 +1005,8 @@ struct PlayTetris : Screen
 	std::vector<std::vector<uint32_t>> currentShape;
 	Vector2Int currentOffset;
 	Vector2Int activeColumnSpan;
-	std::uniform_int_distribution<uint32_t> uniformDistribution;
+	std::uniform_int_distribution<uint32_t> shapePrDist;
+	std::uniform_int_distribution<uint32_t> rotationPrDist;
 
 	PlayTetris(Vector2 screenSize,
 		uint32_t bgColor,
@@ -979,7 +1017,7 @@ struct PlayTetris : Screen
 	, activeColumnSpan(configuration.activeColumnSpan)
 	, period(200.0)
 	, lastDrop(0.0)
-	, uniformDistribution(0, 0)
+	, shapePrDist(0, 0)
 	, currentOffset(0, 0)
 	, level(1)
 	, lines(0)
@@ -1002,7 +1040,8 @@ struct PlayTetris : Screen
 							{ "LEVEL", "1", "LINES", "0", "SCORE", "0" },
 							entities);
 
-		uniformDistribution = std::uniform_int_distribution<uint32_t>(0, configuration.shapes.size()-1);
+		shapePrDist = std::uniform_int_distribution<uint32_t>(0, configuration.shapes.size()-1);
+		rotationPrDist = std::uniform_int_distribution<uint32_t>(0, 3);
 
 		// for (int32_t row = 0; row < 3; ++row)
 		// {
@@ -1039,6 +1078,16 @@ struct PlayTetris : Screen
 			}
 		}
 		stampRandomShape();
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{			
+			while (canMoveDown())
+			{
+				moveDown();
+			}
+			ground();
+			stampRandomShape();
+		}
 	}
 	void setBackground()
 	{
@@ -1051,13 +1100,40 @@ struct PlayTetris : Screen
 			}
 		}
 	}
+	void setFallingPieceVisibility(uint32_t v)
+	{
+		for (int32_t row = 0; row < grid.matrixSize.y; ++row)
+		{
+			for (int32_t column = 0; column < grid.matrixSize.x; ++column)
+			{
+				uint32_t state = grid.getCell(row, column, entities);
+				uint32_t visibility = state == TS_Falling ? v : grid.getForegroundVisibility(row, column, entities);
+				grid.setForegroundVisibility(row, column, visibility, entities);
+			}
+		}
+	}
 	void stampRandomShape()
 	{
 		currentOffset = Vector2Int(grid.matrixSize.x/2-2, 0);
-		auto shape = configuration.shapes[uniformDistribution(rng)];
+		auto shape = configuration.shapes[shapePrDist(rng)];
 		//auto shape = configuration.shapes[6];
 		grid.stamp(shape, currentOffset, entities);
 		currentShape = shape;
+
+		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		{
+			uint32_t count = rotationPrDist(rng);
+			for (uint32_t i = 0; i < count; ++i)
+			{
+				uint32_t rotatingState = TS_Falling;
+				BoxInt box = grid.getBoundingSquare(rotatingState, entities);
+				if (canRotate(box.position, box.size.x, rotatingState))
+				{
+					rotate(box.position, box.size.x, rotatingState);
+					clearRows();
+				}
+			}
+		}
 	}
 	void ground()
 	{
@@ -1217,6 +1293,10 @@ struct PlayTetris : Screen
 			}
 		}
 		currentOffset.y += 1;
+		if (configuration.mode == TetrisConfiguration::Invisible)
+		{
+			setFallingPieceVisibility(0);
+		}
 	}
 	void moveLeft(uint32_t activeState)
 	{
@@ -1244,6 +1324,10 @@ struct PlayTetris : Screen
 			activeColumnSpan.y -= 1;
 			setBackground();
 		}
+		if (configuration.mode == TetrisConfiguration::Invisible)
+		{
+			setFallingPieceVisibility(0xff);
+		}
 	}
 	void moveRight(uint32_t activeState)
 	{
@@ -1270,6 +1354,10 @@ struct PlayTetris : Screen
 			activeColumnSpan.x += 1;
 			activeColumnSpan.y += 1;
 			setBackground();
+		}
+		if (configuration.mode == TetrisConfiguration::Invisible)
+		{
+			setFallingPieceVisibility(0xff);
 		}
 	}
 	void setCellAux(Vector2Int coord, int64_t newState, uint32_t activeState)
@@ -1313,14 +1401,9 @@ struct PlayTetris : Screen
 				setCellAux(coord4, state1, activeState);
 			}
 		}
-		if (configuration.mode == TetrisConfiguration::RotatingGround)
+		if (configuration.mode == TetrisConfiguration::Invisible)
 		{
-			int32_t activeColumnCenter = activeColumnSpan.x + (activeColumnSpan.y - activeColumnSpan.x + 1)/2;
-			int32_t rotatedCenter = offset.x + shapeWidth / 2;
-			int32_t delta = rotatedCenter - activeColumnCenter;
-			activeColumnSpan.x += delta;
-			activeColumnSpan.y += delta;
-			setBackground();
+			setFallingPieceVisibility(0);
 		}
 	}
 	bool canSwap(const Vector2Int a, Vector2Int b, uint32_t activeState)
@@ -1383,7 +1466,7 @@ struct PlayTetris : Screen
 	{
 		bool dead = false;
 		uint32_t activeState = configuration.mode == TetrisConfiguration::RotatingGround ? TS_Grounded : TS_Falling;
-		float effectivePeriod = keyStates[SDLK_DOWN] ? period / 10.0 : period;
+		float effectivePeriod = (keyStates[SDLK_DOWN] || keyStates[SDLK_s]) ? period / 10.0 : period;
 		if (currentTime - lastDrop > effectivePeriod)
 		{
 			if (!canMoveDown())
@@ -1429,6 +1512,7 @@ struct PlayTetris : Screen
 				break;
 			}
 			case SDLK_LEFT:
+			case SDLK_a:
 			{
 				if (canMoveLeft(activeState))
 				{
@@ -1438,6 +1522,7 @@ struct PlayTetris : Screen
 				break;
 			}
 			case SDLK_RIGHT:
+			case SDLK_d:
 			{
 				if (canMoveRight(activeState))
 				{
@@ -1447,30 +1532,25 @@ struct PlayTetris : Screen
 				break;
 			}
 			case SDLK_UP:
+			case SDLK_w:
 			{
-				switch (configuration.mode)
+				uint32_t rotatingState = configuration.mode == TetrisConfiguration::RotatingGround ? TS_Grounded : TS_Falling;
+				BoxInt box = grid.getBoundingSquare(rotatingState, entities);
+
+				printf("rotating box: %d x %d - %d x %d\n", box.position.x, box.position.y, box.size.x, box.size.y);
+				if (canRotate(box.position, box.size.x, rotatingState))
 				{
-					case TetrisConfiguration::Regular:
+					rotate(box.position, box.size.x, rotatingState);
+					if (configuration.mode == TetrisConfiguration::RotatingGround)
 					{
-						if (canRotate(currentOffset, currentShape.size(), TS_Falling))
-						{
-							rotate(currentOffset, currentShape.size(), TS_Falling);
-						}
-						break;
+						int32_t activeColumnCenter = activeColumnSpan.x + (activeColumnSpan.y - activeColumnSpan.x + 1)/2;
+						int32_t rotatedCenter = box.position.x + box.size.x / 2;
+						int32_t delta = rotatedCenter - activeColumnCenter;
+						activeColumnSpan.x += delta;
+						activeColumnSpan.y += delta;
+						setBackground();
 					}
-					case TetrisConfiguration::RotatingGround:
-					{
-						BoxInt box = grid.getBoundingSquare(TS_Grounded, entities);
-						if (box.position.x >= 0 && box.size.x >= 0)
-						{
-							printf("rotating box: %d x %d - %d x %d\n", box.position.x, box.position.y, box.size.x, box.size.y);
-							if (canRotate(box.position, box.size.x, TS_Grounded))
-							{
-								rotate(box.position, box.size.x, TS_Grounded);
-								clearRows();
-							}
-						}
-					}
+					clearRows();
 				}
 				break;
 			}
@@ -1583,16 +1663,20 @@ struct StateManager : Screen
 			againButton.onMouseButton1Down(position, entities);
 		}
 	}
+	void doPause()
+	{
+		gameState = GameState::Paused;
+		entities[coverIndex].position = Vector2();
+		resumeButton.offsetPosition = Vector2();
+		resumeButton.onLayout(Vector2(), screenSize, entities);
+	}
 	void onMouseButton1Up(const Vector2 position) override
 	{
 		screen->onMouseButton1Up(position);
 		if (pauseButton.onMouseButton1Up(position, entities))
 		{
 			printf("Paused!\n");
-			gameState = GameState::Paused;
-			entities[coverIndex].position = Vector2();
-			resumeButton.offsetPosition = Vector2();
-			resumeButton.onLayout(Vector2(), screenSize, entities);
+			doPause();
 		}
 		else if (resumeButton.onMouseButton1Up(position, entities))
 		{
@@ -1611,6 +1695,10 @@ struct StateManager : Screen
 			againButton.onLayout(Vector2(), screenSize, entities);
 			screen->reset();
 		}
+	}
+	void onFocusLost() override
+	{
+		doPause();
 	}
 	void onLayout(const Vector2& parentPosition, const Vector2& parentSize) override
 	{
@@ -1702,6 +1790,10 @@ int main()
 				{
 					SDL_WindowEvent *w = (SDL_WindowEvent*)&e;
 					printf("window event %u %u\n", w->type, w->event);
+					if (w->event == SDL_WINDOWEVENT_FOCUS_LOST)
+					{
+						game.onFocusLost();
+					}
 					break;
 				}
 				default:
