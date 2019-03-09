@@ -12,6 +12,15 @@
 #include <emscripten/html5.h>
 #endif
 
+extern "C"
+{
+	extern void Engine_Test1();
+	extern void Engine_Init();
+	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
+	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
+	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
+}
+
 std::random_device rd;
 std::mt19937 rng(rd()); 
 
@@ -63,7 +72,8 @@ enum Type
 	Circle,
 	Rectangle,
 	Text,
-	Arc
+	Arc,
+	SourceAtop,
 };
 
 std::vector<std::string> idToString;
@@ -194,9 +204,14 @@ struct Game
 			const Entity& entity = entities[i];
 			switch(entity.type)
 			{
+				case Type::SourceAtop:
+				{
+					//setSourceAtop(surface);
+					break;
+				}
 				case Type::Circle:
 				{
-					filledEllipseColor(surface,
+					Engine_FilledEllipse(
 						entity.position.x + entity.size.x/2.0,
 						entity.position.y + entity.size.y/2.0,
 						entity.size.x/2.0,
@@ -206,30 +221,31 @@ struct Game
 				}
 				case Type::Arc:
 				{
-					arcColor(surface,
-						entity.position.x, entity.position.y,
-						entity.size.x, entity.size.y,
-						entity.span.x, entity.span.y,
-						entity.rgba);
+					// arcColor(surface,
+					// 	entity.position.x, entity.position.y,
+					// 	entity.size.x, entity.size.y,
+					// 	entity.span.x, entity.span.y,
+					// 	entity.rgba);
 					break;
 				}
 				case Type::Rectangle:
 				{
-					boxColor(surface,
+					Engine_FilledRectangle(
 						entity.position.x,
 						entity.position.y,
-						entity.position.x + entity.size.x,
-						entity.position.y + entity.size.y,
+						entity.size.x,
+						entity.size.y,
 						entity.rgba);
 					break;
 				}
 				case Type::Text:
 				{
 					const std::string& text = getTextForId(entity.id);
-					filledTextColor(surface,
+					Engine_FilledText(
 						text.c_str(),
 						entity.position.x,
 						entity.position.y,
+						entity.size.x,
 						entity.rgba);
 					break;
 				}
@@ -237,7 +253,7 @@ struct Game
 		}
 		// std::string text("WHAT");
 		// filledTextColor(surface, text.c_str(), 50, 50, 0x000000ff);
-		SDL_UpdateRect(surface, 0, 0, 0, 0);
+		// SDL_UpdateRect(surface, 0, 0, 0, 0);
 	}
 
 	void loop(SDL_Surface* surface, double currentTime, uint64_t count)
@@ -366,6 +382,53 @@ struct Component
 		screenSize = newScreenSize;
 	}
 };
+
+/*
+var canvas = document.getElementById('myCanvas');
+var ctx = canvas.getContext('2d');
+
+ctx.strokeStyle = "rgb(50, 50, 50)";
+ctx.fillStyle = "rgb(150, 150, 150)";
+roundRect(ctx, 18, 18, 50, 50, 15, true);
+
+ctx.strokeStyle = "rgb(50, 50, 50)";
+ctx.fillStyle = "rgb(200, 200, 200)";
+roundRect(ctx, 22, 22, 50, 50, 15, true);
+
+function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+  if (typeof stroke == 'undefined') {
+    stroke = true;
+  }
+  if (typeof radius === 'undefined') {
+    radius = 5;
+  }
+  if (typeof radius === 'number') {
+    radius = {tl: radius, tr: radius, br: radius, bl: radius};
+  } else {
+    var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0};
+    for (var side in defaultRadius) {
+      radius[side] = radius[side] || defaultRadius[side];
+    }
+  }
+  ctx.beginPath();
+  ctx.moveTo(x + radius.tl, y);
+  ctx.lineTo(x + width - radius.tr, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+  ctx.lineTo(x + width, y + height - radius.br);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+  ctx.lineTo(x + radius.bl, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+  ctx.lineTo(x, y + radius.tl);
+  ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+  ctx.closePath();
+  if (fill) {
+    ctx.fill();
+  }
+  if (stroke) {
+    ctx.stroke();
+  }
+
+}*/
 
 struct TextButton : Component
 {

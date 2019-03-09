@@ -925,6 +925,8 @@ void main_loop() { loop(); }
 
 int main()
 {
+	Engine_Test1();
+	Engine_Init();
 	float windowWidth = getWindowWidth();
 	float windowHeight = getWindowHeight();
 	printf("%4.2f x %4.2f\n", windowWidth, windowHeight);
@@ -1003,7 +1005,7 @@ int main()
 
 	emscripten_set_main_loop(main_loop, 0, true);
 
-	SDL_Quit();
+	// SDL_Quit();
 
 	return 1;
 }

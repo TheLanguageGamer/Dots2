@@ -1,14 +1,35 @@
 #include "Engine.h"
 
+#define PI 3.14159265359
+
+struct Eye
+{
+	Eye(std::vector<Entity>& entities)
+	{
+		static const float outerRadius = 60.0f;
+		static const float innerRadius = 20.0f;
+		entities.push_back(createArc(Vector2(150, 150), Vector2(-PI/4, PI/4), outerRadius, 5, 0x000000ff));
+		//entities.push_back(createArc(Vector2(150, 150), Vector2(PI/4, 3*PI/4), outerRadius, 5, 0xff0000ff));
+		entities.push_back(createArc(Vector2(150, 150+outerRadius*1.41), Vector2(5*PI/4, 7*PI/4), outerRadius, 5, 0x000000ff));
+		entities.push_back(createArc(Vector2(150, 150), Vector2(3*PI/4, 5*PI/4), outerRadius, 5, 0x000000ff));
+		entities.push_back(createArc(Vector2(150, 150), Vector2(5*PI/4, 7*PI/4), outerRadius, 5, 0x000000ff));
+
+		entities.push_back(createCircle(150.0-innerRadius*0, 150.0-innerRadius*0, innerRadius, 0x000000ff));
+	}
+};
+
 struct Emoter : Screen
 {
+	Eye leftEye;
 	Emoter(Vector2 screenSize,
 		   uint32_t bgColor,
 		   std::vector<Entity>& entities)
 	: Screen(screenSize, bgColor, entities)
+	, leftEye(Eye(entities))
 	{
 		//entities.push_back(createCircle(50, 50, 50, 0x000000ff));
-		entities.push_back(createArc(Vector2(150, 50), Vector2(0, 1.67), 60, 5, 0x000000ff));
+
+		entities.push_back(createArc(Vector2(350, 150), Vector2(0, 2*PI), 60, 5, 0x000000ff));
 	}
 
 	bool loop(double currentTime, const std::vector<bool>& keyStates)
