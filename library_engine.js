@@ -24,6 +24,32 @@ var LibraryEngine = {
 			Engine.ctx.fillRect(x, y, width, height);
 			Engine.ctx.fill();
 		},
+		roundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
+
+			Engine.ctx.beginPath();
+			Engine.ctx.moveTo(x + radius, y);
+			Engine.ctx.lineTo(x + width - radius, y);
+			Engine.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+			Engine.ctx.lineTo(x + width, y + height - radius);
+			Engine.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+			Engine.ctx.lineTo(x + radius, y + height);
+			Engine.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+			Engine.ctx.lineTo(x, y + radius);
+			Engine.ctx.quadraticCurveTo(x, y, x + radius, y);
+			Engine.ctx.closePath();
+			var fillAlpha = (fillRgba & 0xff) / 255;
+			var strokeAlpha = (strokeRgba & 0xff) / 255;
+			if (fillAlpha > 0) {
+				Engine.ctx.globalAlpha = fillAlpha;
+				Engine.ctx.fillStyle = Engine.translateColorToCSSRGB(fillRgba);
+				Engine.ctx.fill();
+			}
+			if (strokeAlpha > 0) {
+				Engine.ctx.globalAlpha = strokeAlpha;
+				Engine.ctx.strokeStyle = Engine.translateColorToCSSRGB(strokeRgba);
+				Engine.ctx.stroke();
+			}
+		},
 		filledText: function(text, x, y, fontSize, rgba) {
       		text = UTF8ToString(text);
 			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
@@ -52,6 +78,10 @@ var LibraryEngine = {
 
 	Engine_FilledRectangle: function(x, y, width, height, rgba) {
 		Engine.filledRectangle(x, y, width, height, rgba);
+	},
+
+	Engine_RoundedRectangle: function(x, y, width, height, radius, thickness, strokeRgba, fillRgba) {
+		Engine.roundedRectangle(x, y, width, height, radius, thickness, strokeRgba, fillRgba);
 	},
 
 	Engine_FilledText: function(text, x, y, fontSize, rgba) {

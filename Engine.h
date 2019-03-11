@@ -19,6 +19,11 @@ extern "C"
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
+	extern void Engine_RoundedRectangle(
+		float x, float y,
+		float width, float height,
+		float radius, float thickness,
+		uint32_t strokeRgba, uint32_t fillRgba);
 }
 
 std::random_device rd;
@@ -74,6 +79,7 @@ enum Type
 	Text,
 	Arc,
 	SourceAtop,
+	RoundedRectangle,
 };
 
 std::vector<std::string> idToString;
@@ -101,6 +107,13 @@ struct Entity
 	, rgba(rgba)
 	, span(span)
 	, id(0) {}
+	Entity(Type type, Vector2 position, Vector2 size, Vector2 span, uint32_t rgba, uint32_t id)
+	: type(type)
+	, position(position)
+	, size(size)
+	, rgba(rgba)
+	, span(span)
+	, id(id) {}
 	Entity(Type type, Vector2 position, Vector2 size, uint32_t rgba, uint32_t id)
 	: type(type)
 	, position(position)
@@ -130,6 +143,17 @@ static Entity createArc(const Vector2& position, const Vector2& span, float radi
 static Entity createRectangle(const Vector2& position, const Vector2& size, uint32_t rgba)
 {
 	return Entity(Type::Rectangle, position, size, rgba);
+}
+
+static Entity createRoundedRect(
+	const Vector2& position,
+	const Vector2& size,
+	float radius,
+	float thickness,
+	uint32_t strokeRgba,
+	uint32_t fillRgba)
+{
+	return Entity(Type::RoundedRectangle, position, size, Vector2(radius, thickness), strokeRgba, fillRgba);
 }
 
 static uint32_t getIdForText(const std::string& text)
@@ -176,6 +200,7 @@ struct Screen
 	virtual void onKeyDown(SDL_Keycode key) {}
 	virtual void onMouseButton1Down(const Vector2 position) {}
 	virtual void onMouseButton1Up(const Vector2 position) {}
+	virtual void onMouseMove(const Vector2 position) {}
 	virtual void onFocusLost() {}
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize) {}
 	virtual void reset() {}
@@ -238,6 +263,19 @@ struct Game
 						entity.rgba);
 					break;
 				}
+				case Type::RoundedRectangle:
+				{
+					Engine_RoundedRectangle(
+						entity.position.x,
+						entity.position.y,
+						entity.size.x,
+						entity.size.y,
+						entity.span.x,
+						entity.span.y,
+						entity.rgba,
+						entity.id);
+					break;
+				}
 				case Type::Text:
 				{
 					const std::string& text = getTextForId(entity.id);
@@ -284,6 +322,11 @@ struct Game
 		screen->onMouseButton1Up(position);
 	}
 
+	void onMouseMove(const Vector2 position)
+	{
+		screen->onMouseMove(position);
+	}
+
 	void onFocusLost()
 	{
 		screen->onFocusLost();
@@ -326,7 +369,7 @@ struct Component
 	, anchorPoint(anchorPoint)
 	, aspectRatio(-1.0f) {}
 
-	void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
+	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
 	{
 		float newWidth = relativeSize.x*parentSize.x + offsetSize.x;
 		float newHeight = relativeSize.y*parentSize.y + offsetSize.y;
@@ -381,54 +424,11 @@ struct Component
 		screenPosition = newScreenPosition;
 		screenSize = newScreenSize;
 	}
+
+	virtual void onSelect(uint32_t color, std::vector<Entity>& entities) {}
+	virtual void deselect(std::vector<Entity>& entities) {}
+	virtual uint32_t getCategory(std::vector<Entity>& entities) { return 0;}
 };
-
-/*
-var canvas = document.getElementById('myCanvas');
-var ctx = canvas.getContext('2d');
-
-ctx.strokeStyle = "rgb(50, 50, 50)";
-ctx.fillStyle = "rgb(150, 150, 150)";
-roundRect(ctx, 18, 18, 50, 50, 15, true);
-
-ctx.strokeStyle = "rgb(50, 50, 50)";
-ctx.fillStyle = "rgb(200, 200, 200)";
-roundRect(ctx, 22, 22, 50, 50, 15, true);
-
-function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
-  if (typeof stroke == 'undefined') {
-    stroke = true;
-  }
-  if (typeof radius === 'undefined') {
-    radius = 5;
-  }
-  if (typeof radius === 'number') {
-    radius = {tl: radius, tr: radius, br: radius, bl: radius};
-  } else {
-    var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0};
-    for (var side in defaultRadius) {
-      radius[side] = radius[side] || defaultRadius[side];
-    }
-  }
-  ctx.beginPath();
-  ctx.moveTo(x + radius.tl, y);
-  ctx.lineTo(x + width - radius.tr, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
-  ctx.lineTo(x + width, y + height - radius.br);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
-  ctx.lineTo(x + radius.bl, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
-  ctx.lineTo(x, y + radius.tl);
-  ctx.quadraticCurveTo(x, y, x + radius.tl, y);
-  ctx.closePath();
-  if (fill) {
-    ctx.fill();
-  }
-  if (stroke) {
-    ctx.stroke();
-  }
-
-}*/
 
 struct TextButton : Component
 {
@@ -501,7 +501,7 @@ struct TextButton : Component
 
 	void onMouseButton1Down(const Vector2& mousePosition, std::vector<Entity>& entities)
 	{
-			printf("TextButton onMouseButton1Down\n");
+		printf("TextButton onMouseButton1Down\n");
 		if (doesPointIntersectRect(mousePosition,
 								   screenPosition,
 								   screenSize))
@@ -573,11 +573,231 @@ struct TextList : Component
 	}
 };
 
+struct ComponentGrid : Component
+{
+	Vector2Int matrixSize;
+	bool staggered;
+	std::unordered_map<uint64_t, std::shared_ptr<Component>> components;
+	std::vector<Vector2Int> selected;
+	bool isSelecting;
+	uint64_t currentCategory;
+
+	ComponentGrid(const Vector2& relativePosition,
+ 		 const Vector2& offsetPosition,
+ 		 const Vector2& relativeSize,
+ 		 const Vector2& offsetSize,
+ 		 const Vector2& anchorPoint,
+ 		 Vector2Int matrixSize,
+		 Vector2 cellSize,
+		 bool staggered,
+		 std::function<std::shared_ptr<Component>(int32_t, int32_t, float, float)> createComponent,
+		 std::vector<Entity>& entities)
+	: Component(relativePosition, offsetPosition, relativeSize, offsetSize, anchorPoint)
+	, matrixSize(matrixSize)
+	, staggered(staggered)
+	, isSelecting(false)
+	{
+		int32_t startIndex = entities.size();
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			for(int32_t j = 0; j < matrixSize.y; ++j)
+			{
+				float x = i*cellSize.x + cellSize.x/2 + (staggered && j%2? cellSize.x/2 : 0.0);
+				float y = j*cellSize.y + cellSize.y/2;
+				std::shared_ptr<Component> component = createComponent(i, j, x, y);
+				uint64_t index = ((uint64_t)i << 32) + j;
+				components[index] = component;
+			}
+		}
+		int32_t endIndex = entities.size() - 1;
+		indexSpan = Vector2Int(startIndex, endIndex);
+		screenSize = Vector2(((float)matrixSize.x + (staggered ? 0.5 : 0.0))*cellSize.x, matrixSize.y*cellSize.y);
+		aspectRatio = (cellSize.x/cellSize.y)*((float)matrixSize.x + (staggered ? 0.5 : 0.0))/(float)matrixSize.y;
+	}
+	ComponentGrid() {}
+
+	void deselect(const Vector2Int& coordinate, std::vector<Entity>& entities)
+	{
+		uint64_t index = ((uint64_t)coordinate.x << 32) + coordinate.y;
+		std::shared_ptr<Component> component = components[index];
+		component->deselect(entities);
+	}
+
+	void clearSelected(std::vector<Entity>& entities)
+	{
+		for (const Vector2Int& coordinate : selected)
+		{
+			deselect(coordinate, entities);
+		}
+		selected.clear();
+	}
+
+	bool shouldDeselectLast(const Vector2Int& coordinate)
+	{
+		if (selected.size() <= 1)
+		{
+			return false;
+		}
+
+		const Vector2Int& lastLastSelected = selected[selected.size()-2];
+
+		if (lastLastSelected.x == coordinate.x
+			&& lastLastSelected.y == coordinate.y)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	bool isSelected(const Vector2Int& coordinate)
+	{
+		for (const Vector2Int& other : selected)
+		{
+			if (other.x == coordinate.x && other.y == coordinate.y)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool canSelect(const Vector2Int& coordinate)
+	{
+		if (selected.size() == 0)
+		{
+			return true;
+		}
+
+		const Vector2Int& lastSelected = selected[selected.size()-1];
+
+		if (lastSelected.y == coordinate.y
+			&& (lastSelected.x == coordinate.x-1
+			    || lastSelected.x == coordinate.x+1))
+		{
+			return true;
+		}
+
+		if (lastSelected.x == coordinate.x
+			&& (lastSelected.y == coordinate.y-1
+				|| lastSelected.y == coordinate.y+1))
+		{
+			return true;
+		}
+
+		if ((!staggered || (coordinate.y%2 == 1))
+			&& lastSelected.x == coordinate.x+1
+			&& (lastSelected.y == coordinate.y-1
+				|| lastSelected.y == coordinate.y+1))
+		{
+			return true;
+		}
+
+		if ((!staggered || (coordinate.y%2 == 0))
+			&& lastSelected.x == coordinate.x-1
+			&& (lastSelected.y == coordinate.y-1
+				|| lastSelected.y == coordinate.y+1))
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	void onMouseButton1Down(const Vector2& mousePosition, std::vector<Entity>& entities)
+	{
+		clearSelected(entities);
+		for (const auto& item : components)
+		{
+			std::shared_ptr<Component> component = item.second;
+			if (doesPointIntersectRect(mousePosition,
+									   component->screenPosition,
+									   component->screenSize))
+			{
+				component->onSelect(0x88ffaaff, entities);
+
+				uint64_t index = item.first;
+				Vector2Int coordinate(index >> 32, index & 0xffffffff);
+				selected.push_back(coordinate);
+				isSelecting = true;
+				currentCategory = component->getCategory(entities);
+			}
+		}
+	}
+
+	void onMouseButton1Up(const Vector2& mousePosition, std::vector<Entity>& entities)
+	{
+		if (entities.size() > 1)
+		{
+			
+		}
+		clearSelected(entities);
+		isSelecting = false;
+	}
+
+	void onMouseMove(const Vector2& mousePosition, std::vector<Entity>& entities)
+	{
+		if (!isSelecting)
+		{
+			return;
+		}
+		for (const auto& item : components)
+		{
+			std::shared_ptr<Component> component = item.second;
+			if (doesPointIntersectRect(mousePosition,
+									   component->screenPosition,
+									   component->screenSize))
+			{
+				uint64_t index = item.first;
+				Vector2Int coordinate(index >> 32, index & 0xffffffff);
+
+				if (shouldDeselectLast(coordinate))
+				{
+					deselect(selected[selected.size()-1], entities);
+					selected.pop_back();
+					break;
+				}
+
+				if (isSelected(coordinate))
+				{
+					break;
+				}
+
+				if (component->getCategory(entities) != currentCategory)
+				{
+					break;
+				}
+
+				if (!canSelect(coordinate))
+				{
+					break;
+				}
+
+				component->onSelect(0x88ffaaff, entities);
+				selected.push_back(coordinate);
+			}
+		}
+	}
+
+	void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities) override
+	{
+		Component::onLayout(parentPosition, parentSize, entities);
+		float cellHeight = screenSize.y/matrixSize.y;
+		float cellWidth = screenSize.x/((float)matrixSize.x + (staggered ? 0.5 : 0.0));
+
+		for (const auto& item : components)
+		{
+			std::shared_ptr<Component> component = item.second;
+			component->screenPosition = entities[component->indexSpan.x].position;
+			component->screenSize = Vector2(cellWidth, cellHeight);
+		}
+	}
+};
+
 struct Grid : Component
 {
 	Vector2Int matrixSize;
 
-	std::vector<uint32_t> stateColors;
 	Grid(const Vector2& relativePosition,
  		 const Vector2& offsetPosition,
  		 const Vector2& relativeSize,
