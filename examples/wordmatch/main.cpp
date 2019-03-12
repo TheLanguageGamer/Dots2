@@ -73,6 +73,8 @@ struct TextTile : Component
 		entities[foregroundIndex].position = Vector2(currentForeground.x - selectDelta, currentForeground.y - selectDelta);
 		Vector2 currentText = entities[textIndex].position;
 		entities[textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
+
+		animateSizeScale(2.0, 50, Vector2(), entities);
 	}
 
 	void deselect(std::vector<Entity>& entities) override

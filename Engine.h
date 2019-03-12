@@ -85,6 +85,39 @@ enum Type
 std::vector<std::string> idToString;
 std::unordered_map<std::string, uint32_t> stringToId;
 
+struct Animation
+{
+	static const uint32_t INACTIVE = 0;
+	static const uint32_t POSITION = 1;
+	static const uint32_t SIZE = 2;
+
+	float velocity;
+	Vector2 position;
+	Vector2 size;
+	Vector2 span;
+	uint32_t state;
+
+	Animation(Vector2 position, Vector2 size, Vector2 span)
+	: position(position)
+	, size(size)
+	, span(span)
+	, state(0) {}
+
+	void setPosition(const Vector2 newPosition, float newVelocity)
+	{
+		velocity = newVelocity;
+		position = newPosition;
+		state |= POSITION;
+	}
+
+	void setSize(const Vector2 newSize, float newVelocity)
+	{
+		velocity = newVelocity;
+		size = newSize;
+		state |= SIZE;
+	}
+};
+
 struct Entity
 {
 	Vector2 position;
@@ -93,34 +126,41 @@ struct Entity
 	uint32_t rgba;
 	uint32_t id;
 	Type type;
+
+	Animation animation;
+
 	Entity(Type type, Vector2 position, Vector2 size, uint32_t rgba)
 	: type(type)
 	, position(position)
 	, size(size)
 	, rgba(rgba)
 	, id(0)
-	, span(Vector2()) {}
+	, span(Vector2())
+	, animation(Animation(position, size, Vector2())) {}
 	Entity(Type type, Vector2 position, Vector2 size, Vector2 span, uint32_t rgba)
 	: type(type)
 	, position(position)
 	, size(size)
 	, rgba(rgba)
 	, span(span)
-	, id(0) {}
+	, id(0)
+	, animation(Animation(position, size, span)) {}
 	Entity(Type type, Vector2 position, Vector2 size, Vector2 span, uint32_t rgba, uint32_t id)
 	: type(type)
 	, position(position)
 	, size(size)
 	, rgba(rgba)
 	, span(span)
-	, id(id) {}
+	, id(id)
+	, animation(Animation(position, size, span)) {}
 	Entity(Type type, Vector2 position, Vector2 size, uint32_t rgba, uint32_t id)
 	: type(type)
 	, position(position)
 	, size(size)
 	, rgba(rgba)
 	, id(id)
-	, span(Vector2()) {}
+	, span(Vector2())
+	, animation(Animation(position, size, Vector2())) {}
 
 	void shift(const Vector2& delta)
 	{
@@ -226,7 +266,31 @@ struct Game
 		boxColor(surface, 0, 0, screenSize.x, screenSize.y, bgColor);
 		for (int64_t i = 0; i < entities.size(); ++i)
 		{
-			const Entity& entity = entities[i];
+			Entity& entity = entities[i];
+			if (entity.animation.state & Animation::POSITION)
+			{
+				float xDelta = (entity.animation.position.x - entity.position.x)/2;
+				float yDelta = (entity.animation.position.y - entity.position.y)/2;
+				entity.position.x = entity.position.x + xDelta;
+				entity.position.y = entity.position.y + yDelta;
+				if (xDelta < 1.0f && yDelta < 1.0f)
+				{
+					entity.position = entity.animation.position;
+					entity.animation.state = entity.animation.state & ~Animation::POSITION;
+				}
+			}
+			if (entity.animation.state & Animation::SIZE)
+			{
+				float xDelta = (entity.animation.size.x - entity.size.x)/2;
+				float yDelta = (entity.animation.size.y - entity.size.y)/2;
+				entity.size.x = entity.size.x + xDelta;
+				entity.size.y = entity.size.y + yDelta;
+				if (xDelta < 1.0f && yDelta < 1.0f)
+				{
+					entity.size = entity.animation.size;
+					entity.animation.state = entity.animation.state & ~Animation::SIZE;
+				}
+			}
 			switch(entity.type)
 			{
 				case Type::SourceAtop:
@@ -368,6 +432,42 @@ struct Component
 	, offsetSize(offsetSize)
 	, anchorPoint(anchorPoint)
 	, aspectRatio(-1.0f) {}
+
+	void animatePositionDelta(const Vector2& delta, float velocity, std::vector<Entity>& entities)
+	{
+		screenPosition = Vector2(screenPosition.x + delta.x, screenPosition.y + delta.y);
+		offsetPosition = Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y);
+		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
+		{
+			Entity& entity = entities[index];
+			entity.animation.setPosition(Vector2(entity.position.x + delta.x, entity.position.y + delta.y), velocity);
+		}
+	}
+
+	void animateSizeScale(float scale, float velocity, const Vector2& anchorPoint, std::vector<Entity>& entities)
+	{
+		screenSize = Vector2(screenSize.x*scale, screenSize.y*scale);
+		offsetSize = Vector2(offsetSize.x*scale, offsetSize.y*scale);
+		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
+		{
+			Entity& entity = entities[index];
+			entity.animation.setSize(Vector2(entity.size.x*scale, entity.size.y*scale), velocity);
+			//Vector2 sizeDelta(entity.size.x);
+		}
+	}
+
+	void popToTop(std::shared_ptr<Component> component, std::vector<Entity>& entities)
+	{
+		//std::vector<Entity> temp(entities.begin() + subSpan.x, entities.begin() + subSpan.y);
+		int32_t length = component->indexSpan.y - component->indexSpan.x;
+		for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
+		{
+			Entity temp = entities[component->indexSpan.x + indexDelta];
+			entities[component->indexSpan.x + indexDelta] = entities[indexSpan.y - length + indexDelta];
+			entities[indexSpan.y - length + indexDelta] = temp;
+		}
+		component->indexSpan = Vector2Int(indexSpan.y-length, indexSpan.y);
+	}
 
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
 	{
@@ -714,6 +814,7 @@ struct ComponentGrid : Component
 									   component->screenPosition,
 									   component->screenSize))
 			{
+				popToTop(component, entities);
 				component->onSelect(0x88ffaaff, entities);
 
 				uint64_t index = item.first;
