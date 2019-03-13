@@ -456,18 +456,22 @@ struct Component
 		}
 	}
 
-	void popToTop(std::shared_ptr<Component> component, std::vector<Entity>& entities)
-	{
-		//std::vector<Entity> temp(entities.begin() + subSpan.x, entities.begin() + subSpan.y);
-		int32_t length = component->indexSpan.y - component->indexSpan.x;
-		for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
-		{
-			Entity temp = entities[component->indexSpan.x + indexDelta];
-			entities[component->indexSpan.x + indexDelta] = entities[indexSpan.y - length + indexDelta];
-			entities[indexSpan.y - length + indexDelta] = temp;
-		}
-		component->indexSpan = Vector2Int(indexSpan.y-length, indexSpan.y);
-	}
+	// void swapComponentZIndex(std::shared_ptr<Component> other,
+	// 								std::vector<Entity>& entities)
+	// {
+	// 	printf("swapComponentZIndex %p %p\n", other.get(), this);
+	// 	int32_t length = other->indexSpan.y - other->indexSpan.x;
+	// 	//TODO: Add assert, length == indexSpan.y - indexSpan.x;
+	// 	for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
+	// 	{
+	// 		Entity temp = entities[other->indexSpan.x + indexDelta];
+	// 		entities[other->indexSpan.x + indexDelta] = entities[indexSpan.x + indexDelta];
+	// 		entities[indexSpan.x + indexDelta] = temp;
+	// 	}
+	// 	Vector2Int tempSpan = other->indexSpan;
+	// 	other->indexSpan = indexSpan;
+	// 	indexSpan = tempSpan;
+	// }
 
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
 	{
@@ -529,6 +533,24 @@ struct Component
 	virtual void deselect(std::vector<Entity>& entities) {}
 	virtual uint32_t getCategory(std::vector<Entity>& entities) { return 0;}
 };
+
+static void swapComponentZIndex(std::shared_ptr<Component> component1,
+								std::shared_ptr<Component> component2,
+								std::vector<Entity>& entities)
+{
+	printf("swapComponentZIndex %p %p", component1.get(), component2.get());
+	int32_t length = component1->indexSpan.y - component1->indexSpan.x;
+	//TODO: Add assert, length == component2->indexSpan.y - component2->indexSpan.x;
+	for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
+	{
+		Entity temp = entities[component1->indexSpan.x + indexDelta];
+		entities[component1->indexSpan.x + indexDelta] = entities[component2->indexSpan.x + indexDelta];
+		entities[component2->indexSpan.x + indexDelta] = temp;
+	}
+	Vector2Int tempSpan = component1->indexSpan;
+	component1->indexSpan = component2->indexSpan;
+	component2->indexSpan = tempSpan;
+}
 
 struct TextButton : Component
 {
@@ -678,6 +700,7 @@ struct ComponentGrid : Component
 	Vector2Int matrixSize;
 	bool staggered;
 	std::unordered_map<uint64_t, std::shared_ptr<Component>> components;
+	std::shared_ptr<Component> topComponent;
 	std::vector<Vector2Int> selected;
 	bool isSelecting;
 	uint64_t currentCategory;
@@ -696,6 +719,7 @@ struct ComponentGrid : Component
 	, matrixSize(matrixSize)
 	, staggered(staggered)
 	, isSelecting(false)
+	, topComponent(nullptr)
 	{
 		int32_t startIndex = entities.size();
 		for (int32_t i = 0; i < matrixSize.x; ++i)
@@ -707,6 +731,7 @@ struct ComponentGrid : Component
 				std::shared_ptr<Component> component = createComponent(i, j, x, y);
 				uint64_t index = ((uint64_t)i << 32) + j;
 				components[index] = component;
+				topComponent = component;
 			}
 		}
 		int32_t endIndex = entities.size() - 1;
@@ -814,7 +839,8 @@ struct ComponentGrid : Component
 									   component->screenPosition,
 									   component->screenSize))
 			{
-				popToTop(component, entities);
+				swapComponentZIndex(component, topComponent, entities);
+				topComponent = component;
 				component->onSelect(0x88ffaaff, entities);
 
 				uint64_t index = item.first;

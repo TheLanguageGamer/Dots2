@@ -64,31 +64,34 @@ struct TextTile : Component
 		));
 
 		indexSpan = Vector2Int(backgroundIndex, textIndex);
+		backgroundIndex = 0;
+		foregroundIndex = 1;
+		textIndex = 2;
 	}
 
 	void onSelect(uint32_t color, std::vector<Entity>& entities) override
 	{
-		entities[foregroundIndex].id = color;
-		Vector2 currentForeground = entities[foregroundIndex].position;
-		entities[foregroundIndex].position = Vector2(currentForeground.x - selectDelta, currentForeground.y - selectDelta);
-		Vector2 currentText = entities[textIndex].position;
-		entities[textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
+		entities[indexSpan.x + foregroundIndex].id = color;
+		Vector2 currentForeground = entities[indexSpan.x + foregroundIndex].position;
+		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x - selectDelta, currentForeground.y - selectDelta);
+		Vector2 currentText = entities[indexSpan.x + textIndex].position;
+		entities[indexSpan.x + textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
 
 		animateSizeScale(2.0, 50, Vector2(), entities);
 	}
 
 	void deselect(std::vector<Entity>& entities) override
 	{
-		entities[foregroundIndex].id = 0xe8e8e8ff;
-		Vector2 currentForeground = entities[foregroundIndex].position;
-		entities[foregroundIndex].position = Vector2(currentForeground.x + selectDelta, currentForeground.y + selectDelta);
-		Vector2 currentText = entities[textIndex].position;
-		entities[textIndex].position = Vector2(currentText.x + selectDelta, currentText.y + selectDelta);
+		entities[indexSpan.x + foregroundIndex].id = 0xe8e8e8ff;
+		Vector2 currentForeground = entities[indexSpan.x + foregroundIndex].position;
+		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x + selectDelta, currentForeground.y + selectDelta);
+		Vector2 currentText = entities[indexSpan.x + textIndex].position;
+		entities[indexSpan.x + textIndex].position = Vector2(currentText.x + selectDelta, currentText.y + selectDelta);
 	}
 
 	uint32_t getCategory(std::vector<Entity>& entities) override
 	{
-		return entities[textIndex].id;
+		return entities[indexSpan.x + textIndex].id;
 	}
 };
 
