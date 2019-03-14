@@ -78,6 +78,7 @@ struct TextTile : Component
 		entities[indexSpan.x + textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
 
 		animateSizeScale(2.0, 50, Vector2(), entities);
+		animateColorAndMask(0xffffff00, 25, entities);
 	}
 
 	void deselect(std::vector<Entity>& entities) override
@@ -95,12 +96,12 @@ struct TextTile : Component
 	}
 };
 
-struct Equation : Screen
+struct Matcher : Screen
 {
 	ComponentGrid grid;
 	std::uniform_int_distribution<uint32_t> wordPrDist;
 	
-	Equation(Vector2 screenSize,
+	Matcher(Vector2 screenSize,
 		   uint32_t bgColor,
 		   std::vector<Entity>& entities)
 	: Screen(screenSize, bgColor, entities)
@@ -220,9 +221,9 @@ int main()
 	Vector2 screenSize(windowWidth, windowHeight);
 	Game game(screenSize, 0xffffffff);
 	std::vector<Entity> entities;
-	Equation* equation = new Equation(screenSize, 0xffffffff, entities);
-	game.setScreen(equation);
-	equation->onLayout(Vector2(), screenSize);
+	Matcher* matcher = new Matcher(screenSize, 0xffffffff, entities);
+	game.setScreen(matcher);
+	matcher->onLayout(Vector2(), screenSize);
 
 	SDL_Init(SDL_INIT_VIDEO);
 

@@ -90,18 +90,27 @@ struct Animation
 	static const uint32_t INACTIVE = 0;
 	static const uint32_t POSITION = 1;
 	static const uint32_t SIZE = 2;
+	static const uint32_t COLOR = 4;
+	static const uint32_t ID = 8;
 
 	float velocity;
 	Vector2 position;
 	Vector2 size;
 	Vector2 span;
+
+	uint32_t colorVelocity;
+	uint32_t color;
+	uint32_t id;
+
 	uint32_t state;
 
 	Animation(Vector2 position, Vector2 size, Vector2 span)
 	: position(position)
 	, size(size)
 	, span(span)
-	, state(0) {}
+	, state(0)
+	, velocity(0.0)
+	, colorVelocity(0) {}
 
 	void setPosition(const Vector2 newPosition, float newVelocity)
 	{
@@ -115,6 +124,21 @@ struct Animation
 		velocity = newVelocity;
 		size = newSize;
 		state |= SIZE;
+	}
+
+	void setColor(const uint32_t newColor, uint32_t newColorVelocity)
+	{
+		//printf("Animating FROM: 0x%08x, TO: 0x%08x\n", color, newColor);
+		colorVelocity = newColorVelocity;
+		color = newColor;
+		state |= COLOR;
+	}
+
+	void setId(const uint32_t newId, uint32_t newColorVelocity)
+	{
+		colorVelocity = newColorVelocity;
+		id = newId;
+		state |= ID;
 	}
 };
 
@@ -291,6 +315,30 @@ struct Game
 					entity.animation.state = entity.animation.state & ~Animation::SIZE;
 				}
 			}
+			if (entity.animation.state & Animation::COLOR)
+			{
+				int32_t colorDelta = ((int64_t)entity.animation.color - (int64_t)entity.rgba)/2;
+				entity.rgba = entity.rgba + colorDelta;
+				//printf("Animating: 0x%08x, 0x%08x -> 0x%08x\n", entity.animation.color, colorDelta, entity.rgba);
+				if (colorDelta == 0)
+				{
+					entity.animation.state = entity.animation.state & ~Animation::COLOR;
+				}
+			}
+			if (entity.animation.state & Animation::ID)
+			{
+				// int32_t sa = entity.id & 0xff;
+				// int32_t sb = (entity.id >> 8) & 0xff;
+				// int32_t sg = (entity.id >> 16) & 0xff;
+				// int32_t sr = (entity.id >> 32) & 0xff;
+				int32_t idDelta = ((int64_t)entity.animation.id - (int64_t)entity.id)/2;
+				entity.id = entity.id + idDelta;
+				printf("Animating: 0x%08x, %d -> 0x%08x\n", entity.animation.id, idDelta, entity.id);
+				if (idDelta == 0)
+				{
+					entity.animation.state = entity.animation.state & ~Animation::ID;
+				}
+			}
 			switch(entity.type)
 			{
 				case Type::SourceAtop:
@@ -456,22 +504,30 @@ struct Component
 		}
 	}
 
-	// void swapComponentZIndex(std::shared_ptr<Component> other,
-	// 								std::vector<Entity>& entities)
-	// {
-	// 	printf("swapComponentZIndex %p %p\n", other.get(), this);
-	// 	int32_t length = other->indexSpan.y - other->indexSpan.x;
-	// 	//TODO: Add assert, length == indexSpan.y - indexSpan.x;
-	// 	for (int32_t indexDelta = 0; indexDelta <= length; ++indexDelta)
-	// 	{
-	// 		Entity temp = entities[other->indexSpan.x + indexDelta];
-	// 		entities[other->indexSpan.x + indexDelta] = entities[indexSpan.x + indexDelta];
-	// 		entities[indexSpan.x + indexDelta] = temp;
-	// 	}
-	// 	Vector2Int tempSpan = other->indexSpan;
-	// 	other->indexSpan = indexSpan;
-	// 	indexSpan = tempSpan;
-	// }
+	void animateColorAndMask(uint32_t color, uint32_t velocity, std::vector<Entity>& entities)
+	{
+		printf("animateColorAndMask %d - %d\n", indexSpan.x, indexSpan.y);
+		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
+		{
+			Entity& entity = entities[index];
+			switch (entity.type)
+			{
+				case Type::RoundedRectangle:
+				{
+					uint32_t newId = entity.id & color;
+					entity.animation.setId(newId, velocity);
+					break;
+				}
+				default:
+				{
+					break;
+				}
+			}
+			uint32_t newColor = entity.rgba & color;
+			printf("%d 0x%08x & 0x%08x == 0x%08x\n", index, entity.rgba, color, newColor);
+			entity.animation.setColor(newColor, velocity);
+		}
+	}
 
 	virtual void onLayout(const Vector2& parentPosition, const Vector2& parentSize, std::vector<Entity>& entities)
 	{
