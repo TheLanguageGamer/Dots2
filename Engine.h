@@ -333,7 +333,7 @@ struct Game
 				// int32_t sr = (entity.id >> 32) & 0xff;
 				int32_t idDelta = ((int64_t)entity.animation.id - (int64_t)entity.id)/2;
 				entity.id = entity.id + idDelta;
-				printf("Animating: 0x%08x, %d -> 0x%08x\n", entity.animation.id, idDelta, entity.id);
+				//printf("Animating: 0x%08x, %d -> 0x%08x\n", entity.animation.id, idDelta, entity.id);
 				if (idDelta == 0)
 				{
 					entity.animation.state = entity.animation.state & ~Animation::ID;
@@ -459,6 +459,8 @@ struct Component
 	Vector2 anchorPoint;
 	float aspectRatio;
 
+	bool enabled;
+
 	Vector2Int indexSpan;
 	Component()
 	: screenPosition(Vector2())
@@ -468,7 +470,8 @@ struct Component
 	, offsetPosition(Vector2())
 	, offsetSize(Vector2())
 	, anchorPoint(Vector2())
-	, aspectRatio(-1.0f) {}
+	, aspectRatio(-1.0f)
+	, enabled(true) {}
 	Component(const Vector2& relativePosition,
  		 	  const Vector2& offsetPosition,
  		 	  const Vector2& relativeSize,
@@ -479,12 +482,25 @@ struct Component
 	, relativeSize(relativeSize)
 	, offsetSize(offsetSize)
 	, anchorPoint(anchorPoint)
-	, aspectRatio(-1.0f) {}
+	, aspectRatio(-1.0f)
+	, enabled(true) {}
 
 	void animatePositionDelta(const Vector2& delta, float velocity, std::vector<Entity>& entities)
 	{
 		screenPosition = Vector2(screenPosition.x + delta.x, screenPosition.y + delta.y);
 		offsetPosition = Vector2(offsetPosition.x + delta.x, offsetPosition.y + delta.y);
+		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
+		{
+			Entity& entity = entities[index];
+			entity.animation.setPosition(Vector2(entity.position.x + delta.x, entity.position.y + delta.y), velocity);
+		}
+	}
+
+	void animatePosition(const Vector2& newPosition, float velocity, std::vector<Entity>& entities)
+	{
+		Vector2 delta(newPosition.x - screenPosition.x, newPosition.y - screenPosition.y);
+		screenPosition = newPosition;
+		offsetPosition = newPosition;
 		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
 		{
 			Entity& entity = entities[index];
@@ -506,7 +522,7 @@ struct Component
 
 	void animateColorAndMask(uint32_t color, uint32_t velocity, std::vector<Entity>& entities)
 	{
-		printf("animateColorAndMask %d - %d\n", indexSpan.x, indexSpan.y);
+		//printf("animateColorAndMask %d - %d\n", indexSpan.x, indexSpan.y);
 		for (int32_t index = indexSpan.x; index <= indexSpan.y; ++index)
 		{
 			Entity& entity = entities[index];
@@ -524,7 +540,7 @@ struct Component
 				}
 			}
 			uint32_t newColor = entity.rgba & color;
-			printf("%d 0x%08x & 0x%08x == 0x%08x\n", index, entity.rgba, color, newColor);
+			//printf("%d 0x%08x & 0x%08x == 0x%08x\n", index, entity.rgba, color, newColor);
 			entity.animation.setColor(newColor, velocity);
 		}
 	}
@@ -754,6 +770,7 @@ struct TextList : Component
 struct ComponentGrid : Component
 {
 	Vector2Int matrixSize;
+	Vector2 cellSize;
 	bool staggered;
 	std::unordered_map<uint64_t, std::shared_ptr<Component>> components;
 	std::shared_ptr<Component> topComponent;
@@ -773,6 +790,7 @@ struct ComponentGrid : Component
 		 std::vector<Entity>& entities)
 	: Component(relativePosition, offsetPosition, relativeSize, offsetSize, anchorPoint)
 	, matrixSize(matrixSize)
+	, cellSize(cellSize)
 	, staggered(staggered)
 	, isSelecting(false)
 	, topComponent(nullptr)
@@ -782,9 +800,8 @@ struct ComponentGrid : Component
 		{
 			for(int32_t j = 0; j < matrixSize.y; ++j)
 			{
-				float x = i*cellSize.x + cellSize.x/2 + (staggered && j%2? cellSize.x/2 : 0.0);
-				float y = j*cellSize.y + cellSize.y/2;
-				std::shared_ptr<Component> component = createComponent(i, j, x, y);
+				Vector2 p = positionForCoordinate(i, j);
+				std::shared_ptr<Component> component = createComponent(i, j, p.x, p.y);
 				uint64_t index = ((uint64_t)i << 32) + j;
 				components[index] = component;
 				topComponent = component;
@@ -797,6 +814,40 @@ struct ComponentGrid : Component
 	}
 	ComponentGrid() {}
 
+	void drop(std::vector<Entity>& entities)
+	{
+		for (int32_t i = 0; i < matrixSize.x; ++i)
+		{
+			int32_t total = 0;
+			for(int32_t j = matrixSize.y-1; j >= 0; --j)
+			{
+				uint64_t index = ((uint64_t)i << 32) + j;
+				std::shared_ptr<Component> component = components[index];
+				if (component->enabled)
+				{
+					int32_t newJ = j + total;
+					const Vector2 p = positionForCoordinate(i, newJ);
+					//printf("at %d dropping %d to %d - Component(%p)\n", i, j, newJ, component.get());
+					component->animatePosition(p, 50.0f, entities);
+					uint64_t newIndex = ((uint64_t)i << 32) + newJ;
+					components[index] = nullptr;
+					components[newIndex] = component;
+				}
+				else
+				{
+					total += 1;
+				}
+			}
+		}
+	}
+
+	Vector2 positionForCoordinate(int32_t i, int32_t j)
+	{
+		float x = i*cellSize.x + cellSize.x/2 + (staggered && j%2? cellSize.x/2 : 0.0);
+		float y = j*cellSize.y + cellSize.y/2;
+		return Vector2(x, y);
+	}
+
 	void deselect(const Vector2Int& coordinate, std::vector<Entity>& entities)
 	{
 		uint64_t index = ((uint64_t)coordinate.x << 32) + coordinate.y;
@@ -808,9 +859,16 @@ struct ComponentGrid : Component
 	{
 		for (const Vector2Int& coordinate : selected)
 		{
-			deselect(coordinate, entities);
+			uint64_t index = ((uint64_t)coordinate.x << 32) + coordinate.y;
+			std::shared_ptr<Component> component = components[index];
+			component->deselect(entities);
+
+			component->animateSizeScale(2.0, 50, Vector2(), entities);
+			component->animateColorAndMask(0xffffff00, 25, entities);
+			component->enabled = false;
 		}
 		selected.clear();
+		drop(entities);
 	}
 
 	bool shouldDeselectLast(const Vector2Int& coordinate)
@@ -891,9 +949,10 @@ struct ComponentGrid : Component
 		for (const auto& item : components)
 		{
 			std::shared_ptr<Component> component = item.second;
-			if (doesPointIntersectRect(mousePosition,
-									   component->screenPosition,
-									   component->screenSize))
+			if (component->enabled
+				&& doesPointIntersectRect(mousePosition,
+									   	  component->screenPosition,
+									   	  component->screenSize))
 			{
 				swapComponentZIndex(component, topComponent, entities);
 				topComponent = component;
@@ -974,6 +1033,9 @@ struct ComponentGrid : Component
 			component->screenPosition = entities[component->indexSpan.x].position;
 			component->screenSize = Vector2(cellWidth, cellHeight);
 		}
+		cellSize = Vector2(cellWidth, cellHeight);
+		//screenSize = Vector2(((float)matrixSize.x + (staggered ? 0.5 : 0.0))*cellSize.x, matrixSize.y*cellSize.y);
+		aspectRatio = (cellSize.x/cellSize.y)*((float)matrixSize.x + (staggered ? 0.5 : 0.0))/(float)matrixSize.y;
 	}
 };
 
