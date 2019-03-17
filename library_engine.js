@@ -1,15 +1,43 @@
 var LibraryEngine = {
 	$Engine: {
 		ctx : null,
+		IMAGE_FOLDER : "../../images/",
+		images : {},
 		init: function() {
 			console.log("$Engine.init");
 			var canvas = Module["canvas"];
 			Engine.ctx = canvas.getContext('2d');
 		},
-	    translateColorToCSSRGB: function(rgba) {
-	      var ret = 'rgb(' + (rgba>>>24) + ',' + (rgba>>16 & 0xff) + ',' + (rgba>>8 & 0xff)  + ')';
-	      return ret;
-	    },
+		translateColorToCSSRGB: function(rgba) {
+		  var ret = 'rgb(' + (rgba>>>24) + ',' + (rgba>>16 & 0xff) + ',' + (rgba>>8 & 0xff)  + ')';
+		  return ret;
+		},
+		drawImage: function(name, x, y, width, height, rgba) {
+			name = UTF8ToString(name);
+			var image = Engine.images[name];
+			if (image === undefined) {
+				image = new Image();
+				image.src = Engine.IMAGE_FOLDER + name;
+				Engine.images[name] = image;
+				return;
+			}
+			// maintain aspect ratio
+			if (!image.complete) {
+				return;
+			}
+			var alphaInt = rgba & 0xff;
+			if (alphaInt == 0) {
+				return;
+			}
+			Engine.ctx.globalAlpha = alphaInt / 255;
+			// var ratio = width/height;
+			// var targetRatio = image.width/image.height;
+			// if (targetRatio > ratio)
+			// {
+				
+			// }
+			Engine.ctx.drawImage(image, x, y, width, height);
+		},
 		filledEllipse: function(x, y, width, height, rgba) {
 			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
 			Engine.ctx.fillStyle = Engine.translateColorToCSSRGB(rgba);
@@ -51,7 +79,7 @@ var LibraryEngine = {
 			}
 		},
 		filledText: function(text, x, y, fontSize, rgba) {
-      		text = UTF8ToString(text);
+			text = UTF8ToString(text);
 			Engine.ctx.globalAlpha = (rgba & 0xff) / 255;
 			Engine.ctx.fillStyle = Engine.translateColorToCSSRGB(rgba);
 			Engine.ctx.font = "" + fontSize + "px Monospace";
@@ -86,6 +114,10 @@ var LibraryEngine = {
 
 	Engine_FilledText: function(text, x, y, fontSize, rgba) {
 		Engine.filledText(text, x, y, fontSize, rgba);
+	},
+
+	Engine_Image: function(name, x, y, width, height, rgba) {
+		Engine.drawImage(name, x, y, width, height, rgba);
 	},
 };
 

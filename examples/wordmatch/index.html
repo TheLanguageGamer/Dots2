@@ -103,9 +103,20 @@
   </head>
   <body>
     
+    <!--<canvas id="testcanvas" width="200" height="100" style="border:1px solid #000000;"></canvas>-->
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
     <script type='text/javascript'>
+      // var c = document.getElementById("testcanvas");
+      // var ctx = c.getContext("2d");
+      // var img = new Image();
+      // img.onload = function() {
+      //     console.log("jhelms Image", img.width, img.height)
+      //     ctx.drawImage(img, 0, 0, 60, 20);
+      // };
+      // img.src = '../../images/red_apple.svg';
+
+
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');

@@ -11,7 +11,7 @@
 #include <emscripten.h>
 #include <emscripten/html5.h>
 #endif
-
+//"http://0.0.0.0:8000/images/5254856"
 extern "C"
 {
 	extern void Engine_Test1();
@@ -19,6 +19,7 @@ extern "C"
 	extern void Engine_FilledEllipse(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledRectangle(float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_FilledText(const char* text, float x, float y, float fontSize, uint32_t rgba);
+	extern void Engine_Image(const char* name, float x, float y, float width, float height, uint32_t rgba);
 	extern void Engine_RoundedRectangle(
 		float x, float y,
 		float width, float height,
@@ -77,6 +78,7 @@ enum Type
 	Circle,
 	Rectangle,
 	Text,
+	Image,
 	Arc,
 	SourceAtop,
 	RoundedRectangle,
@@ -185,6 +187,14 @@ struct Entity
 	, id(id)
 	, span(Vector2())
 	, animation(Animation(position, size, Vector2())) {}
+	// Entity(Type type, const Vector2& position, const Vector2& size, uint32_t id)
+	// : type(type)
+	// , position(position)
+	// , size(size)
+	// , id(id)
+	// , rgba(0x0)
+	// , span(Vector2())
+	// , animation(position, size, Vector2()) {}
 
 	void shift(const Vector2& delta)
 	{
@@ -240,6 +250,12 @@ static Entity createText(const std::string& text, float x, float y, float fontSi
 {
 	uint32_t id = getIdForText(text);
 	return Entity(Type::Text, Vector2(x, y), Vector2(fontSize, fontSize), color, id);
+}
+
+static Entity createImage(const std::string& name, const Vector2& position, const Vector2& size, uint32_t rgba)
+{
+	uint32_t id = getIdForText(name);
+	return Entity(Type::Image, position, size, rgba, id);
 }
 
 struct Screen
@@ -396,6 +412,18 @@ struct Game
 						entity.position.x,
 						entity.position.y,
 						entity.size.x,
+						entity.rgba);
+					break;
+				}
+				case Type::Image:
+				{
+					const std::string& name = getTextForId(entity.id);
+					Engine_Image(
+						name.c_str(),
+						entity.position.x,
+						entity.position.y,
+						entity.size.x,
+						entity.size.y,
 						entity.rgba);
 					break;
 				}
@@ -956,7 +984,8 @@ struct ComponentGrid : Component
 			{
 				swapComponentZIndex(component, topComponent, entities);
 				topComponent = component;
-				component->onSelect(0x88ffaaff, entities);
+				//component->onSelect(0x88ffaaff, entities);
+				component->onSelect(0xfdfdfdff, entities);
 
 				uint64_t index = item.first;
 				Vector2Int coordinate(index >> 32, index & 0xffffffff);
@@ -1015,7 +1044,7 @@ struct ComponentGrid : Component
 					break;
 				}
 
-				component->onSelect(0x88ffaaff, entities);
+				component->onSelect(0xfdfdfdff, entities);
 				selected.push_back(coordinate);
 			}
 		}

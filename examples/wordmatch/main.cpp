@@ -7,28 +7,36 @@ struct Word
 	std::string text;
 	std::string pronunciation;
 	std::string translation;
+	std::string imageFileName;
 
-	Word(std::string text, std::string pronunciation, std::string translation)
+	Word(
+		std::string text,
+		std::string pronunciation,
+		std::string translation,
+		std::string imageFileName)
 	: text(text)
 	, pronunciation(pronunciation)
-	, translation(translation) {}
+	, translation(translation)
+	, imageFileName(imageFileName) {}
 };
 
 struct TextTile : Component
 {
+	Word word;
 	float selectDelta;
 	uint32_t backgroundIndex;
 	uint32_t foregroundIndex;
 	uint32_t imageIndex;
 	uint32_t textIndex;
 
-	TextTile(const std::string& text,
+	TextTile(const Word& word,
 			 const Vector2& offsetSize,
 			 const Vector2& offsetPosition,
 			 const Vector2& anchorPoint,
 			 const float fontSize,
 			 std::vector<Entity>& entities)
 	: Component()
+	, word(word)
 	, selectDelta(2.0)
 	{
 		this->offsetSize = offsetSize;
@@ -53,9 +61,17 @@ struct TextTile : Component
 			0x323232ff,
 			0xe8e8e8ff
 		));
+		imageIndex = entities.size();
+		entities.push_back(createImage(
+			//"red_apple.svg",
+			word.imageFileName,
+			offsetPosition,
+			offsetSize,
+			0xffffff00
+		));
 		textIndex = entities.size();
 		entities.push_back(createText(
-			text,
+			word.text,
 			offsetPosition.x + 10,
 			offsetPosition.y + 44,
 			40,
@@ -66,7 +82,8 @@ struct TextTile : Component
 		indexSpan = Vector2Int(backgroundIndex, textIndex);
 		backgroundIndex = 0;
 		foregroundIndex = 1;
-		textIndex = 2;
+		imageIndex = 2;
+		textIndex = 3;
 	}
 
 	void onSelect(uint32_t color, std::vector<Entity>& entities) override
@@ -76,6 +93,7 @@ struct TextTile : Component
 		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x - selectDelta, currentForeground.y - selectDelta);
 		Vector2 currentText = entities[indexSpan.x + textIndex].position;
 		entities[indexSpan.x + textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
+		entities[indexSpan.x + imageIndex].rgba = 0xffffffff;
 	}
 
 	void deselect(std::vector<Entity>& entities) override
@@ -85,6 +103,7 @@ struct TextTile : Component
 		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x + selectDelta, currentForeground.y + selectDelta);
 		Vector2 currentText = entities[indexSpan.x + textIndex].position;
 		entities[indexSpan.x + textIndex].position = Vector2(currentText.x + selectDelta, currentText.y + selectDelta);
+		entities[indexSpan.x + imageIndex].rgba = 0xffffff00;
 	}
 
 	uint32_t getCategory(std::vector<Entity>& entities) override
@@ -105,27 +124,27 @@ struct Matcher : Screen
 	{
 
 		std::vector<Word> fruit({
-			Word("苹果","píng guǒ", "apple"),
-			Word("香蕉","xiāng jiāo", "banana"),
-			Word("芒果","máng guǒ", "mango"),
-			Word("葡萄","pú táo", "grape"),
-			Word("橙子", "chéng zǐ", "orange"),
-			Word("草莓", "cǎo méi" , "strawberry"),
-			Word("西瓜", "xī guā", "melon"),
-			Word("樱桃", "yīng táo", "cherry"),
-			Word("柑橘", "gān jú", "mandarin"),
-			Word("桃子", "táo zǐ", "peach"),
-			Word("梨", "lí", "pear"),
-			Word("蓝莓", "lán méi"   , "blueberry"),
-			Word("椰子", "yē zǐ", "coconut"),
-			Word("奇异果", "qí yì guǒ", "kiwi"),
-			Word("柠檬", "níng méng", "lemon"),
-			Word("牛油果", "niú yóu guǒ", "avocado"),
-			Word("菠萝", "bō luó", "pineapple"),
-			Word("石榴", "shí liú", "pomegranate"),
+			Word("苹果","píng guǒ", "apple", "red_apple.svg"),
+			Word("香蕉","xiāng jiāo", "banana", "bananas.svg"),
+			//Word("芒果","máng guǒ", "mango"),
+			Word("葡萄","pú táo", "grape", "grapes.svg"),
+			// Word("橙子", "chéng zǐ", "orange"),
+			// Word("草莓", "cǎo méi" , "strawberry"),
+			// Word("西瓜", "xī guā", "melon"),
+			// Word("樱桃", "yīng táo", "cherry"),
+			// Word("柑橘", "gān jú", "mandarin"),
+			// Word("桃子", "táo zǐ", "peach"),
+			// Word("梨", "lí", "pear"),
+			// Word("蓝莓", "lán méi"   , "blueberry"),
+			// Word("椰子", "yē zǐ", "coconut"),
+			// Word("奇异果", "qí yì guǒ", "kiwi"),
+			// Word("柠檬", "níng méng", "lemon"),
+			// Word("牛油果", "niú yóu guǒ", "avocado"),
+			// Word("菠萝", "bō luó", "pineapple"),
+			// Word("石榴", "shí liú", "pomegranate"),
 		});
 
-		wordPrDist = std::uniform_int_distribution<uint32_t>(0, 4);
+		wordPrDist = std::uniform_int_distribution<uint32_t>(0, 2);
 
 		Vector2 tileSize(135, 75);
 
@@ -141,7 +160,7 @@ struct Matcher : Screen
 			[this, &fruit, &entities, &tileSize](int32_t i, int32_t j, float x, float y){
 				Word& word = fruit[wordPrDist(rng)];
 				return std::make_shared<TextTile>(
-					word.text,
+					word,
 					tileSize,
 					Vector2(x, y),
 					Vector2(0, 0),
