@@ -93,6 +93,7 @@ struct TextTile : Component
 		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x - selectDelta, currentForeground.y - selectDelta);
 		Vector2 currentText = entities[indexSpan.x + textIndex].position;
 		entities[indexSpan.x + textIndex].position = Vector2(currentText.x - selectDelta, currentText.y - selectDelta);
+		entities[indexSpan.x + textIndex].rgba &= 0xffffff00;
 		entities[indexSpan.x + imageIndex].rgba = 0xffffffff;
 	}
 
@@ -103,6 +104,7 @@ struct TextTile : Component
 		entities[indexSpan.x + foregroundIndex].position = Vector2(currentForeground.x + selectDelta, currentForeground.y + selectDelta);
 		Vector2 currentText = entities[indexSpan.x + textIndex].position;
 		entities[indexSpan.x + textIndex].position = Vector2(currentText.x + selectDelta, currentText.y + selectDelta);
+		entities[indexSpan.x + textIndex].rgba |= 0x000000ff;
 		entities[indexSpan.x + imageIndex].rgba = 0xffffff00;
 	}
 
@@ -128,20 +130,41 @@ struct Matcher : Screen
 			Word("香蕉","xiāng jiāo", "banana", "bananas.svg"),
 			//Word("芒果","máng guǒ", "mango"),
 			Word("葡萄","pú táo", "grape", "grapes.svg"),
-			// Word("橙子", "chéng zǐ", "orange"),
-			// Word("草莓", "cǎo méi" , "strawberry"),
+			Word("橙子", "chéng zǐ", "orange", "orange.png"),
+			Word("草莓", "cǎo méi" , "strawberry", "strawberry.png"),
 			// Word("西瓜", "xī guā", "melon"),
-			// Word("樱桃", "yīng táo", "cherry"),
+			Word("樱桃", "yīng táo", "cherry", "cherry.svg"),
 			// Word("柑橘", "gān jú", "mandarin"),
 			// Word("桃子", "táo zǐ", "peach"),
-			// Word("梨", "lí", "pear"),
+			Word("梨", "lí", "pear", "pear.svg"),
 			// Word("蓝莓", "lán méi"   , "blueberry"),
-			// Word("椰子", "yē zǐ", "coconut"),
-			// Word("奇异果", "qí yì guǒ", "kiwi"),
-			// Word("柠檬", "níng méng", "lemon"),
-			// Word("牛油果", "niú yóu guǒ", "avocado"),
-			// Word("菠萝", "bō luó", "pineapple"),
+			Word("椰子", "yē zǐ", "coconut", "coconut.png"),
+			Word("奇异果", "qí yì guǒ", "kiwi", "kiwi.png"),
+			Word("柠檬", "níng méng", "lemon", "lemon.png"),
+			Word("牛油果", "niú yóu guǒ", "avocado", "avocado.png"),
+			Word("菠萝", "bō luó", "pineapple", "pineapple.png"),
 			// Word("石榴", "shí liú", "pomegranate"),
+
+			Word("玉米",	"yù mǐ", "corn", "corn.svg"),
+			Word("土豆", "tǔ dòu", "potato", "potato.png"),
+			Word("生姜", "shēng jiāng", "ginger", "ginger.png"),
+			Word("大蒜", "dà suàn", "garlic", "garlic.png"),
+			// Word("豆", "dòu"	, "bean"),
+			Word("西兰花", "xī lán huā", "broccoli", "broccoli.png"),
+			// Word("黄瓜", "huáng guā", "cucumber"),
+			// Word("韭菜", "jiǔ cài", "leek"),
+			// Word("蘑菇", "mó gū", "mushroom"),
+			// Word("木耳", "mù ěr", "agarics"),
+			// Word("青椒", "qīng jiāo", "green pepper"),
+			// Word("辣椒", "là jiāo", "pepper"),
+			// Word("西红柿", "xī hóng shì", "tomato"),
+			// Word("茄子", "qié zǐ", "aborigine"),
+			// Word("萝卜", "luó bo", "radish"),
+			// Word("芋头", "yù tóu", "taro"),
+			// Word("白菜", "bái cài", "cabbage"),
+			// Word("菠菜", "bō cài", "spinach"),
+			// Word("南瓜", "nán guā", "pumpkin"),
+			// Word("苦瓜", "kǔ guā", "bitter gourd"),
 		});
 
 		wordPrDist = std::uniform_int_distribution<uint32_t>(0, 2);

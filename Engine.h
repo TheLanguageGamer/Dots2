@@ -858,7 +858,7 @@ struct ComponentGrid : Component
 					//printf("at %d dropping %d to %d - Component(%p)\n", i, j, newJ, component.get());
 					component->animatePosition(p, 50.0f, entities);
 					uint64_t newIndex = ((uint64_t)i << 32) + newJ;
-					components[index] = nullptr;
+					components.erase(index);
 					components[newIndex] = component;
 				}
 				else
@@ -881,6 +881,17 @@ struct ComponentGrid : Component
 		uint64_t index = ((uint64_t)coordinate.x << 32) + coordinate.y;
 		std::shared_ptr<Component> component = components[index];
 		component->deselect(entities);
+	}
+
+	void deselectAll(std::vector<Entity>& entities)
+	{
+		for (const Vector2Int& coordinate : selected)
+		{
+			uint64_t index = ((uint64_t)coordinate.x << 32) + coordinate.y;
+			std::shared_ptr<Component> component = components[index];
+			component->deselect(entities);
+		}
+		selected.clear();
 	}
 
 	void clearSelected(std::vector<Entity>& entities)
@@ -973,7 +984,7 @@ struct ComponentGrid : Component
 
 	void onMouseButton1Down(const Vector2& mousePosition, std::vector<Entity>& entities)
 	{
-		clearSelected(entities);
+		deselectAll(entities);
 		for (const auto& item : components)
 		{
 			std::shared_ptr<Component> component = item.second;
@@ -998,11 +1009,14 @@ struct ComponentGrid : Component
 
 	void onMouseButton1Up(const Vector2& mousePosition, std::vector<Entity>& entities)
 	{
-		if (entities.size() > 1)
+		if (selected.size() >= 3)
 		{
-			
+			clearSelected(entities);
 		}
-		clearSelected(entities);
+		else
+		{
+			deselectAll(entities);
+		}
 		isSelecting = false;
 	}
 
@@ -1015,12 +1029,18 @@ struct ComponentGrid : Component
 		for (const auto& item : components)
 		{
 			std::shared_ptr<Component> component = item.second;
-			if (doesPointIntersectRect(mousePosition,
+			if (component->enabled
+				&& doesPointIntersectRect(mousePosition,
 									   component->screenPosition,
 									   component->screenSize))
 			{
 				uint64_t index = item.first;
 				Vector2Int coordinate(index >> 32, index & 0xffffffff);
+				printf("INTERSECTING %d - %d, Category: %u vs %llu\n",
+					coordinate.x,
+					coordinate.y,
+					component->getCategory(entities),
+					currentCategory);
 
 				if (shouldDeselectLast(coordinate))
 				{
@@ -1031,6 +1051,7 @@ struct ComponentGrid : Component
 
 				if (isSelected(coordinate))
 				{
+					//printf("IS SELECTED %d - %d\n", coordinate.x, coordinate.y);
 					break;
 				}
 
@@ -1065,6 +1086,8 @@ struct ComponentGrid : Component
 		cellSize = Vector2(cellWidth, cellHeight);
 		//screenSize = Vector2(((float)matrixSize.x + (staggered ? 0.5 : 0.0))*cellSize.x, matrixSize.y*cellSize.y);
 		aspectRatio = (cellSize.x/cellSize.y)*((float)matrixSize.x + (staggered ? 0.5 : 0.0))/(float)matrixSize.y;
+
+		drop(entities);
 	}
 };
 
