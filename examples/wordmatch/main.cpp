@@ -125,7 +125,7 @@ struct Matcher : Screen
 	: Screen(screenSize, bgColor, entities)
 	{
 
-		std::vector<Word> fruit({
+		std::vector<Word> words({
 			Word("苹果","píng guǒ", "apple", "red_apple.svg"),
 			Word("香蕉","xiāng jiāo", "banana", "bananas.svg"),
 			//Word("芒果","máng guǒ", "mango"),
@@ -153,11 +153,11 @@ struct Matcher : Screen
 			Word("西兰花", "xī lán huā", "broccoli", "broccoli.png"),
 			// Word("黄瓜", "huáng guā", "cucumber"),
 			// Word("韭菜", "jiǔ cài", "leek"),
-			// Word("蘑菇", "mó gū", "mushroom"),
+			Word("蘑菇", "mó gū", "mushroom", "mushroom.svg"),
 			// Word("木耳", "mù ěr", "agarics"),
 			// Word("青椒", "qīng jiāo", "green pepper"),
 			// Word("辣椒", "là jiāo", "pepper"),
-			// Word("西红柿", "xī hóng shì", "tomato"),
+			Word("西红柿", "xī hóng shì", "tomato", "tomato.png"),
 			// Word("茄子", "qié zǐ", "aborigine"),
 			// Word("萝卜", "luó bo", "radish"),
 			// Word("芋头", "yù tóu", "taro"),
@@ -165,7 +165,58 @@ struct Matcher : Screen
 			// Word("菠菜", "bō cài", "spinach"),
 			// Word("南瓜", "nán guā", "pumpkin"),
 			// Word("苦瓜", "kǔ guā", "bitter gourd"),
+
+			Word("小提琴", "xiǎo tíqín", "violin", "violin.svg"),
+			// Word("中提琴", "zhōnɡ tí qín", "Viola"),
+			// Word("中提琴", "zhōnɡ tíqín", "Viola"),
+			// Word("大提琴", "dà tíqín", "Cello"),
+			Word("吉他", "jítā", "guitar", "guitar.png"),
+			// Word("低音提琴", "bass dīyīn tíqín", "Double"),
+			// Word("尤克里里", "yóukèlǐlǐ", "Ukulele"),
+			// Word("竖琴", "shùqín", "Harp"),
+			// Word("电贝司", "bass diàn bèisī", "Electric"),
+			Word("钢琴", "ɡānɡqín", "piano", "piano.png"),
+			Word("爵士鼓", "juéshì ɡǔ", "drum set", "drum_set.svg"),
+
+			Word("公共汽车", "gōng gòng qì chē", "bus", "bus.svg"),
+			// Word("长途汽车", "cháng tú qì chē", "long distance bus"),
+			// Word("有轨电车", "yǒu guǐ diàn chē", "Tram"),
+			Word("小汽车", "xiǎo qì chē", "car", "car.png"),
+			// Word("的士", "dī shì", "Taxi"),
+			Word("警车", "jǐng chē", "police car", "police_car.svg"),
+			Word("救护车", "jiù hù chē", "ambulance", "ambulance.png"),
+			Word("消防车", "xiāo fáng chē", "fire truck", "fire_truck.png"),
+			Word("卡车", "kǎ chē", "truck", "truck.png"),
+			Word("火车", "huǒ chē", "train", "train.svg"),
+			Word("自行车", "zì xíng chē", "bicycle", "bicycle.png"),
+			Word("摩托车", "mó tuō chē", "motorcycle", "motorcycle.png"),
+			// Word("地铁", "dì tiě", "metro"),
+
+			Word("轮船", "lún chuán", "boat", "boat.png"),
+			// Word("邮轮", "yóu lún", "cruise ship"),
+			// Word("游艇", "yóu tǐng", "yacht"),
+			Word("飞机", "fēi jī", "airplane", "airplane.svg"),
+			Word("直升机", "zhí shēng jī", "helicopter", "helicopter.png"),
+			// Word("热气球", "rè qì qiú", "hot-air balloon"),
+			Word("宇宙飞船", "yǔ zhòu fēi chuán", "spaceship", "spaceship.png"),
+
+			Word("床", "chuáng", "bed", "bed.svg"),
+			Word("沙发", "shā fā", "sofa", "sofa.png"),
+			Word("桌子", "zhuō zi", "table", "table.png"),
+			// Word("茶桌", "chá zhuō", "coffee table"),
+			Word("椅子", "yǐ zi", "chair", "chair.png"),
+			Word("台灯", "tái dēng", "lamp", "lamp.png"),
+			// Word("柜子", "guì zi", "cabinet/cupboard"),
+			// Word("衣橱", "yī chú", "wardrobe"),
+			// Word("书架", "shū jià", "bookshelf"),
+			Word("书桌", "shū zhuō", "desk", "desk.svg"),
+			// Word("电视", "diàn shì", "television"),
+			// Word("洗衣机", "xǐ yī jī", "washing machine"),
+
 		});
+
+		unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+		std::shuffle(words.begin(), words.end(), std::default_random_engine(seed));
 
 		wordPrDist = std::uniform_int_distribution<uint32_t>(0, 2);
 
@@ -180,8 +231,8 @@ struct Matcher : Screen
 			Vector2Int(5, 5),
 			Vector2(tileSize.x + 8, tileSize.y + 8),
 			false,
-			[this, &fruit, &entities, &tileSize](int32_t i, int32_t j, float x, float y){
-				Word& word = fruit[wordPrDist(rng)];
+			[this, &words, &entities, &tileSize](int32_t i, int32_t j, float x, float y){
+				Word& word = words[wordPrDist(rng)];
 				return std::make_shared<TextTile>(
 					word,
 					tileSize,
@@ -321,6 +372,11 @@ int main()
 					{
 						game.onFocusLost();
 					}
+			        else if (w->event == SDL_WINDOWEVENT_RESIZED)
+			        {
+			            printf("Window %d resized to %dx%d",
+			                    w->windowID, w->data1, w->data2);
+			        }
 					break;
 				}
 				default:
